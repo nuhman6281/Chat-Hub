@@ -11,6 +11,7 @@ const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const TestDemo = lazy(() => import("@/pages/TestDemo"));
 
 function LoadingSpinner() {
   return (
@@ -23,10 +24,13 @@ function LoadingSpinner() {
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  
+  // TEMPORARY: Allow direct access to the application for development testing
+  const bypassAuth = true;
 
   useEffect(() => {
-    // Redirect logic
-    if (!isLoading) {
+    // Redirect logic - bypassed for development testing
+    if (!isLoading && !bypassAuth) {
       if (isAuthenticated && (location === "/login" || location === "/register")) {
         setLocation("/");
       } else if (!isAuthenticated && location !== "/login" && location !== "/register") {
@@ -35,7 +39,7 @@ function Router() {
     }
   }, [isAuthenticated, isLoading, location, setLocation]);
 
-  if (isLoading) {
+  if (isLoading && !bypassAuth) {
     return <LoadingSpinner />;
   }
 
@@ -44,7 +48,8 @@ function Router() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
-        <Route path="/" component={Home} />
+        <Route path="/demo" component={TestDemo} />
+        <Route path="/" component={bypassAuth ? TestDemo : Home} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
