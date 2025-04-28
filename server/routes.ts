@@ -1,4 +1,4 @@
-import express, { type Express, Request, Response } from "express";
+import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -31,13 +31,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     checkPeriod: 86400000 // 24 hours
   });
 
-  // Configure session middleware
+  // Configure session middleware with more permissive settings for development
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "chatHub-secret-key",
-      resave: false,
-      saveUninitialized: false,
-      cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 24 hours
+      resave: true,
+      saveUninitialized: true,
+      cookie: { 
+        secure: false, 
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true
+      },
       store: sessionStore
     })
   );
@@ -257,14 +261,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/auth/login', passport.authenticate('local'), (req: Request, res: Response) => {
-    // If we get here, authentication was successful
-    if (req.user) {
-      const { password, ...userWithoutPassword } = req.user as any;
-      res.json(userWithoutPassword);
-    } else {
-      res.status(401).json({ message: 'Authentication failed' });
-    }
+  app.post('/api/auth/login', (req: Request, res: Response, next: NextFunction) => {
+    console.log('Login attempt:', req.body.username);
+    
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) {
+        console.error('Login error:', err);
+        return res.status(500).json({ message: 'Server error during authentication' });
+      }
+      
+      if (!user) {
+        console.log('Login failed:', info?.message || 'Authentication failed');
+        return res.status(401).json({ message: info?.message || 'Authentication failed' });
+      }
+      
+      // Log the user in manually
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error('Session login error:', loginErr);
+          return res.status(500).json({ message: 'Failed to establish session' });
+        }
+        
+        console.log('Login successful for user:', user.username, 'Session ID:', req.sessionID);
+        
+        // Return user data without password
+        const { password, ...userWithoutPassword } = user;
+        return res.json(userWithoutPassword);
+      });
+    })(req, res, next);
   });
 
   app.post('/api/auth/logout', (req: Request, res: Response) => {
@@ -284,10 +308,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/auth/user', (req: Request, res: Response) => {
+    console.log('Checking auth status, Session ID:', req.sessionID);
+    console.log('Is authenticated:', req.isAuthenticated());
+    
     if (req.isAuthenticated()) {
+      console.log('User authenticated:', (req.user as any).username);
       const { password, ...userWithoutPassword } = req.user as any;
       res.json(userWithoutPassword);
     } else {
+      console.log('Not authenticated. Session:', req.session);
       res.status(401).json({ message: 'Not authenticated' });
     }
   });
