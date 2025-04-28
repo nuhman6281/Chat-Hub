@@ -13,11 +13,7 @@ import {
   insertChannelMemberSchema,
   type MessageWithUser
 } from "@shared/schema";
-import session from "express-session";
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import bcrypt from "bcrypt";
-import MemoryStore from "memorystore";
+import { setupAuth, ensureAuthenticated, verifyToken } from "./auth";
 
 // WebSocket client map
 interface ConnectedClient {
@@ -26,72 +22,8 @@ interface ConnectedClient {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  const SessionStore = MemoryStore(session);
-  const sessionStore = new SessionStore({
-    checkPeriod: 86400000 // 24 hours
-  });
-
-  // Configure session middleware with more permissive settings for development
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "chatHub-secret-key",
-      resave: true,
-      saveUninitialized: true,
-      cookie: { 
-        secure: false, 
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        httpOnly: true
-      },
-      store: sessionStore
-    })
-  );
-
-  // Initialize passport
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  // Configure passport local strategy
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        const user = await storage.getUserByUsername(username);
-        if (!user) {
-          return done(null, false, { message: "Incorrect username." });
-        }
-
-        // For our demo user, allow a simple password check
-        if (user.username === "demo" && password === "password") {
-          // Update user status to online
-          await storage.updateUserStatus(user.id, "online");
-          return done(null, user);
-        }
-        
-        // For regular users, use proper password verification
-        const passwordMatch = user.password === password;
-        if (!passwordMatch) {
-          return done(null, false, { message: "Incorrect password." });
-        }
-        // Update user status to online
-        await storage.updateUserStatus(user.id, "online");
-        return done(null, user);
-      } catch (err) {
-        return done(err);
-      }
-    })
-  );
-
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
-  });
-
-  passport.deserializeUser(async (id: number, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (err) {
-      done(err);
-    }
-  });
+  // Set up authentication with our centralized auth module
+  setupAuth(app);
 
   // Create HTTP server
   const httpServer = createServer(app);
