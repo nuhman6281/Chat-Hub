@@ -110,6 +110,22 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 
+// Define message relations
+export const messagesRelations = relations(messages, ({ one }) => ({
+  user: one(users, {
+    fields: [messages.userId],
+    references: [users.id]
+  }),
+  channel: one(channels, {
+    fields: [messages.channelId],
+    references: [channels.id]
+  }),
+  directMessage: one(directMessages, {
+    fields: [messages.directMessageId],
+    references: [directMessages.id]
+  })
+}));
+
 // Direct message conversation model
 export const directMessages = pgTable("direct_messages", {
   id: serial("id").primaryKey(),
@@ -125,6 +141,19 @@ export const insertDirectMessageSchema = createInsertSchema(directMessages).pick
 
 export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;
 export type DirectMessage = typeof directMessages.$inferSelect;
+
+// Define direct message relations
+export const directMessagesRelations = relations(directMessages, ({ one, many }) => ({
+  user1: one(users, {
+    fields: [directMessages.user1Id],
+    references: [users.id]
+  }),
+  user2: one(users, {
+    fields: [directMessages.user2Id],
+    references: [users.id]
+  }),
+  messages: many(messages)
+}));
 
 // Workspace membership model
 export const workspaceMembers = pgTable("workspace_members", {
@@ -143,6 +172,18 @@ export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).
 export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 
+// Define workspace member relations
+export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceMembers.workspaceId],
+    references: [workspaces.id]
+  }),
+  user: one(users, {
+    fields: [workspaceMembers.userId],
+    references: [users.id]
+  })
+}));
+
 // Channel membership model
 export const channelMembers = pgTable("channel_members", {
   id: serial("id").primaryKey(),
@@ -157,6 +198,18 @@ export const insertChannelMemberSchema = createInsertSchema(channelMembers).pick
 
 export type InsertChannelMember = z.infer<typeof insertChannelMemberSchema>;
 export type ChannelMember = typeof channelMembers.$inferSelect;
+
+// Define channel member relations
+export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
+  channel: one(channels, {
+    fields: [channelMembers.channelId],
+    references: [channels.id]
+  }),
+  user: one(users, {
+    fields: [channelMembers.userId],
+    references: [users.id]
+  })
+}));
 
 // Message with user information
 export type MessageWithUser = Message & {

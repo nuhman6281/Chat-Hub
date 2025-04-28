@@ -416,7 +416,7 @@ export class MemStorage implements IStorage {
 }
 
 import { db } from './db';
-import { eq, and, or, desc, count } from 'drizzle-orm';
+import { eq, and, or, desc, count, sql, ilike } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
 export class DatabaseStorage implements IStorage {
@@ -440,7 +440,7 @@ export class DatabaseStorage implements IStorage {
     // Set default values
     const userToInsert = {
       ...insertUser,
-      status: insertUser.status || 'online',
+      status: 'online',
       avatarUrl: insertUser.avatarUrl || null
     };
     
@@ -740,8 +740,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async isUserInWorkspace(userId: number, workspaceId: number): Promise<boolean> {
-    const [count] = await db
-      .select({ count: count() })
+    const result = await db
+      .select({ memberCount: count() })
       .from(workspaceMembers)
       .where(
         and(
@@ -750,7 +750,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
     
-    return count.count > 0;
+    return result[0].memberCount > 0;
   }
 
   async addChannelMember(insertMember: InsertChannelMember): Promise<ChannelMember> {
@@ -776,8 +776,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
-    const [count] = await db
-      .select({ count: count() })
+    const result = await db
+      .select({ memberCount: count() })
       .from(channelMembers)
       .where(
         and(
@@ -786,7 +786,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
     
-    return count.count > 0;
+    return result[0].memberCount > 0;
   }
   
   // Search users by username or display name
@@ -796,10 +796,9 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(
         or(
-          // Using simple LIKE for demo, in production should use more efficient text search
-          // or consider using a search index like Elasticsearch
-          users.username.like(`%${searchTerm}%`),
-          users.displayName.like(`%${searchTerm}%`)
+          // Using ilike for case-insensitive search
+          ilike(users.username, `%${searchTerm}%`),
+          ilike(users.displayName, `%${searchTerm}%`)
         )
       )
       .limit(20); // Limit results for performance
