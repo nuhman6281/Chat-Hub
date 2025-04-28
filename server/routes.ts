@@ -352,94 +352,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Authentication endpoints
-  app.post('/api/auth/register', async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertUserSchema.parse(req.body);
-      
-      // Check if username already exists
-      const existingUser = await storage.getUserByUsername(validatedData.username);
-      if (existingUser) {
-        return res.status(400).json({ message: 'Username already exists' });
-      }
-      
-      const user = await storage.createUser(validatedData);
-      
-      // Auto-login after registration
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: 'Login failed after registration' });
-        }
-        // Return user without password
-        const { password, ...userWithoutPassword } = user;
-        return res.status(201).json(userWithoutPassword);
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid user data', errors: error.errors });
-      }
-      return res.status(500).json({ message: 'Registration failed' });
-    }
-  });
+  // Register endpoint is now managed in auth.ts
 
-  app.post('/api/auth/login', (req: Request, res: Response, next: NextFunction) => {
-    console.log('Login attempt:', req.body.username);
-    
-    passport.authenticate('local', (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('Login error:', err);
-        return res.status(500).json({ message: 'Server error during authentication' });
-      }
-      
-      if (!user) {
-        console.log('Login failed:', info?.message || 'Authentication failed');
-        return res.status(401).json({ message: info?.message || 'Authentication failed' });
-      }
-      
-      // Log the user in manually
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('Session login error:', loginErr);
-          return res.status(500).json({ message: 'Failed to establish session' });
-        }
-        
-        console.log('Login successful for user:', user.username, 'Session ID:', req.sessionID);
-        
-        // Return user data without password
-        const { password, ...userWithoutPassword } = user;
-        return res.json(userWithoutPassword);
-      });
-    })(req, res, next);
-  });
+  // Login endpoint is now managed in auth.ts
 
-  app.post('/api/auth/logout', (req: Request, res: Response) => {
-    if (req.user) {
-      const userId = (req.user as any).id;
-      storage.updateUserStatus(userId, "offline").then(() => {
-        req.logout((err) => {
-          if (err) {
-            return res.status(500).json({ message: 'Logout failed' });
-          }
-          res.json({ message: 'Logged out successfully' });
-        });
-      });
-    } else {
-      res.json({ message: 'No user to log out' });
-    }
-  });
-
-  app.get('/api/auth/user', (req: Request, res: Response) => {
-    console.log('Checking auth status, Session ID:', req.sessionID);
-    console.log('Is authenticated:', req.isAuthenticated());
-    
-    if (req.isAuthenticated()) {
-      console.log('User authenticated:', (req.user as any).username);
-      const { password, ...userWithoutPassword } = req.user as any;
-      res.json(userWithoutPassword);
-    } else {
-      console.log('Not authenticated. Session:', req.session);
-      res.status(401).json({ message: 'Not authenticated' });
-    }
-  });
+  // Auth endpoints (logout and user) are now managed in auth.ts
 
   // Workspaces
   app.post('/api/workspaces', ensureAuthenticated, async (req: Request, res: Response) => {
@@ -772,13 +689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Middleware to ensure user is authenticated
-  function ensureAuthenticated(req: Request, res: Response, next: any) {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    res.status(401).json({ message: 'Unauthorized' });
-  }
+  // We're now using the ensureAuthenticated function from auth.ts
 
   return httpServer;
 }

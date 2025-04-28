@@ -75,7 +75,7 @@ export function setupAuth(app: Express) {
 
   // Configure local strategy for username/password auth
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
+    new LocalStrategy(async (username: string, password: string, done: any) => {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
@@ -175,7 +175,7 @@ export function setupAuth(app: Express) {
 
   // Login endpoint
   app.post("/api/auth/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: Express.User, info: { message?: string }) => {
       if (err) {
         return next(err);
       }
