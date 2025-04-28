@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // User model
 export const users = pgTable("users", {
@@ -22,6 +23,14 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+// Define user relations
+export const usersRelations = relations(users, ({ many }) => ({
+  workspaceMembers: many(workspaceMembers),
+  channelMembers: many(channelMembers),
+  messages: many(messages),
+  ownedWorkspaces: many(workspaces, { relationName: 'owner' }),
+}));
+
 // Workspace model
 export const workspaces = pgTable("workspaces", {
   id: serial("id").primaryKey(),
@@ -39,6 +48,17 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
 
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspaces.$inferSelect;
+
+// Define workspace relations
+export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [workspaces.ownerId],
+    references: [users.id],
+    relationName: 'owner'
+  }),
+  channels: many(channels),
+  members: many(workspaceMembers)
+}));
 
 // Channel model
 export const channels = pgTable("channels", {
@@ -59,6 +79,16 @@ export const insertChannelSchema = createInsertSchema(channels).pick({
 
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
 export type Channel = typeof channels.$inferSelect;
+
+// Define channel relations
+export const channelsRelations = relations(channels, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [channels.workspaceId],
+    references: [workspaces.id]
+  }),
+  messages: many(messages),
+  members: many(channelMembers)
+}));
 
 // Message model
 export const messages = pgTable("messages", {

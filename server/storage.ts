@@ -415,4 +415,396 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { db } from './db';
+import { eq, and, or, desc, count } from 'drizzle-orm';
+import bcrypt from 'bcrypt';
+
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    // Hash password if not already hashed
+    if (insertUser.password && !insertUser.password.startsWith('$2b$')) {
+      const hashedPassword = await bcrypt.hash(insertUser.password, 10);
+      insertUser.password = hashedPassword;
+    }
+    
+    // Set default values
+    const userToInsert = {
+      ...insertUser,
+      status: insertUser.status || 'online',
+      avatarUrl: insertUser.avatarUrl || null
+    };
+    
+    const [user] = await db.insert(users).values(userToInsert).returning();
+    return user;
+  }
+
+  async updateUserStatus(id: number, status: string): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ status })
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser || undefined;
+  }
+
+  async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
+    // Start a transaction to ensure all operations are atomic
+    return await db.transaction(async (tx) => {
+      // Create the workspace
+      const [workspace] = await tx
+        .insert(workspaces)
+        .values(insertWorkspace)
+        .returning();
+      
+      // Add the owner as a member with 'owner' role
+      await tx
+        .insert(workspaceMembers)
+        .values({
+          workspaceId: workspace.id,
+          userId: insertWorkspace.ownerId,
+          role: 'owner'
+        });
+      
+      // Create a default general channel
+      const [channel] = await tx
+        .insert(channels)
+        .values({
+          name: 'general',
+          workspaceId: workspace.id,
+          description: 'General discussions',
+          isPrivate: false
+        })
+        .returning();
+      
+      // Add the owner to the general channel
+      await tx
+        .insert(channelMembers)
+        .values({
+          channelId: channel.id,
+          userId: insertWorkspace.ownerId
+        });
+      
+      return workspace;
+    });
+  }
+
+  async getWorkspace(id: number): Promise<Workspace | undefined> {
+    const [workspace] = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, id));
+    
+    return workspace || undefined;
+  }
+
+  async getWorkspacesByUserId(userId: number): Promise<Workspace[]> {
+    return await db
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        ownerId: workspaces.ownerId,
+        iconText: workspaces.iconText,
+        createdAt: workspaces.createdAt
+      })
+      .from(workspaces)
+      .innerJoin(workspaceMembers, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(workspaceMembers.userId, userId));
+  }
+
+  async createChannel(insertChannel: InsertChannel): Promise<Channel> {
+    const [channel] = await db
+      .insert(channels)
+      .values({
+        ...insertChannel,
+        description: insertChannel.description || null,
+        isPrivate: insertChannel.isPrivate || false
+      })
+      .returning();
+    
+    return channel;
+  }
+
+  async getChannel(id: number): Promise<Channel | undefined> {
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, id));
+    
+    return channel || undefined;
+  }
+
+  async getChannelsByWorkspaceId(workspaceId: number): Promise<ChannelWithMemberCount[]> {
+    return await db
+      .select({
+        id: channels.id,
+        name: channels.name,
+        workspaceId: channels.workspaceId,
+        description: channels.description,
+        isPrivate: channels.isPrivate,
+        createdAt: channels.createdAt,
+        memberCount: count(channelMembers.id).as('memberCount')
+      })
+      .from(channels)
+      .leftJoin(channelMembers, eq(channels.id, channelMembers.channelId))
+      .where(eq(channels.workspaceId, workspaceId))
+      .groupBy(channels.id);
+  }
+
+  async createMessage(insertMessage: InsertMessage): Promise<MessageWithUser> {
+    const [message] = await db
+      .insert(messages)
+      .values({
+        ...insertMessage,
+        channelId: insertMessage.channelId || null,
+        directMessageId: insertMessage.directMessageId || null
+      })
+      .returning();
+    
+    // Get the user who created the message
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, message.userId));
+    
+    if (!user) {
+      throw new Error(`User with id ${message.userId} not found`);
+    }
+    
+    return { ...message, user };
+  }
+
+  async getMessagesByChannelId(channelId: number): Promise<MessageWithUser[]> {
+    return await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        userId: messages.userId,
+        channelId: messages.channelId,
+        directMessageId: messages.directMessageId,
+        createdAt: messages.createdAt,
+        user: users
+      })
+      .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(eq(messages.channelId, channelId))
+      .orderBy(messages.createdAt);
+  }
+
+  async getMessagesByDirectMessageId(directMessageId: number): Promise<MessageWithUser[]> {
+    return await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        userId: messages.userId,
+        channelId: messages.channelId,
+        directMessageId: messages.directMessageId,
+        createdAt: messages.createdAt,
+        user: users
+      })
+      .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(eq(messages.directMessageId, directMessageId))
+      .orderBy(messages.createdAt);
+  }
+
+  async createDirectMessage(insertDM: InsertDirectMessage): Promise<DirectMessage> {
+    const [dm] = await db
+      .insert(directMessages)
+      .values(insertDM)
+      .returning();
+    
+    return dm;
+  }
+
+  async getDirectMessage(id: number): Promise<DirectMessage | undefined> {
+    const [dm] = await db
+      .select()
+      .from(directMessages)
+      .where(eq(directMessages.id, id));
+    
+    return dm || undefined;
+  }
+
+  async getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessage | undefined> {
+    const [dm] = await db
+      .select()
+      .from(directMessages)
+      .where(
+        or(
+          and(
+            eq(directMessages.user1Id, user1Id),
+            eq(directMessages.user2Id, user2Id)
+          ),
+          and(
+            eq(directMessages.user1Id, user2Id),
+            eq(directMessages.user2Id, user1Id)
+          )
+        )
+      );
+    
+    return dm || undefined;
+  }
+
+  async getDirectMessagesByUserId(userId: number): Promise<DirectMessageWithUser[]> {
+    const results = await db.transaction(async (tx) => {
+      // Get all direct messages for the user
+      const directMessagesForUser = await tx
+        .select()
+        .from(directMessages)
+        .where(
+          or(
+            eq(directMessages.user1Id, userId),
+            eq(directMessages.user2Id, userId)
+          )
+        );
+      
+      return await Promise.all(
+        directMessagesForUser.map(async (dm) => {
+          // Determine the other user in the conversation
+          const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
+          
+          // Get the other user's information
+          const [otherUser] = await tx
+            .select()
+            .from(users)
+            .where(eq(users.id, otherUserId));
+          
+          if (!otherUser) {
+            throw new Error(`User with id ${otherUserId} not found`);
+          }
+          
+          // Get the most recent message
+          const [lastMessage] = await tx
+            .select({
+              id: messages.id,
+              content: messages.content,
+              userId: messages.userId,
+              channelId: messages.channelId,
+              directMessageId: messages.directMessageId,
+              createdAt: messages.createdAt,
+              user: users
+            })
+            .from(messages)
+            .innerJoin(users, eq(messages.userId, users.id))
+            .where(eq(messages.directMessageId, dm.id))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+          
+          return {
+            ...dm,
+            otherUser,
+            lastMessage
+          };
+        })
+      );
+    });
+    
+    return results;
+  }
+
+  async addWorkspaceMember(insertMember: InsertWorkspaceMember): Promise<WorkspaceMember> {
+    const [member] = await db
+      .insert(workspaceMembers)
+      .values({
+        ...insertMember,
+        role: insertMember.role || 'member'
+      })
+      .returning();
+    
+    return member;
+  }
+
+  async getWorkspaceMembersByWorkspaceId(workspaceId: number): Promise<(WorkspaceMember & { user: User })[]> {
+    return await db
+      .select({
+        id: workspaceMembers.id,
+        workspaceId: workspaceMembers.workspaceId,
+        userId: workspaceMembers.userId,
+        role: workspaceMembers.role,
+        user: users
+      })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(workspaceMembers.userId, users.id))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+  }
+
+  async isUserInWorkspace(userId: number, workspaceId: number): Promise<boolean> {
+    const [count] = await db
+      .select({ count: count() })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId)
+        )
+      );
+    
+    return count.count > 0;
+  }
+
+  async addChannelMember(insertMember: InsertChannelMember): Promise<ChannelMember> {
+    const [member] = await db
+      .insert(channelMembers)
+      .values(insertMember)
+      .returning();
+    
+    return member;
+  }
+
+  async getChannelMembersByChannelId(channelId: number): Promise<(ChannelMember & { user: User })[]> {
+    return await db
+      .select({
+        id: channelMembers.id,
+        channelId: channelMembers.channelId,
+        userId: channelMembers.userId,
+        user: users
+      })
+      .from(channelMembers)
+      .innerJoin(users, eq(channelMembers.userId, users.id))
+      .where(eq(channelMembers.channelId, channelId));
+  }
+
+  async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
+    const [count] = await db
+      .select({ count: count() })
+      .from(channelMembers)
+      .where(
+        and(
+          eq(channelMembers.userId, userId),
+          eq(channelMembers.channelId, channelId)
+        )
+      );
+    
+    return count.count > 0;
+  }
+  
+  // Search users by username or display name
+  async searchUsers(searchTerm: string): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          // Using simple LIKE for demo, in production should use more efficient text search
+          // or consider using a search index like Elasticsearch
+          users.username.like(`%${searchTerm}%`),
+          users.displayName.like(`%${searchTerm}%`)
+        )
+      )
+      .limit(20); // Limit results for performance
+  }
+}
+
+// Use the DatabaseStorage implementation instead of MemStorage
+export const storage = new DatabaseStorage();
