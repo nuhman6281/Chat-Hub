@@ -96,30 +96,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
 
-  // Set up WebSocket server
+  // Set up WebSocket server with more specific error handling
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   const clients: ConnectedClient[] = [];
 
-  wss.on('connection', (ws) => {
+  // Handle new WebSocket connections
+  wss.on('connection', (ws, req) => {
+    console.log(`New WebSocket connection: ${req.url}`);
     let userId: number | null = null;
+    let pingInterval: NodeJS.Timeout;
+
+    // Set up ping/pong for connection health checks
+    pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      } else {
+        clearInterval(pingInterval);
+      }
+    }, 30000);
 
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
+        console.log(`WebSocket message received:`, data.type);
 
         if (data.type === 'auth') {
           // Authenticate the WebSocket connection
+          if (!data.userId) {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'User ID is required for authentication'
+            }));
+            return;
+          }
+
           const user = await storage.getUser(data.userId);
           if (user) {
             userId = user.id;
-            clients.push({ userId: user.id, ws });
+            
+            // Remove any existing connections for this user
+            const existingIndex = clients.findIndex(client => 
+              client.userId === userId && client.ws !== ws
+            );
+            
+            if (existingIndex !== -1) {
+              console.log(`Replacing existing WebSocket for user: ${user.username}`);
+              // Don't close the old connection, just replace it in the clients array
+              clients[existingIndex].ws = ws;
+            } else {
+              clients.push({ userId: user.id, ws });
+            }
+            
             console.log(`WebSocket authenticated for user: ${user.username}`);
             
             // Send confirmation back to the client
-            ws.send(JSON.stringify({ type: 'auth_success', userId: user.id }));
+            ws.send(JSON.stringify({ 
+              type: 'auth_success', 
+              userId: user.id,
+              username: user.username,
+              displayName: user.displayName
+            }));
+            
+            // Update user status to online
+            await storage.updateUserStatus(userId, "online");
+          } else {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'User not found'
+            }));
           }
         } else if (data.type === 'message' && userId) {
           // Handle new chat message
+          if (!data.content || data.content.trim() === '') {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'Message content cannot be empty'
+            }));
+            return;
+          }
+
           if (data.channelId) {
             // Channel message
             const isUserInChannel = await storage.isUserInChannel(userId, data.channelId);
@@ -140,6 +195,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Broadcast to all clients in the channel
             broadcastToChannel(data.channelId, message);
+            
+            // Send confirmation back to sender
+            ws.send(JSON.stringify({ 
+              type: 'message_sent', 
+              messageId: message.id 
+            }));
           } else if (data.directMessageId) {
             // Direct message
             const dm = await storage.getDirectMessage(data.directMessageId);
@@ -160,6 +221,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Send to both participants
             broadcastToDirectMessage(data.directMessageId, message);
+            
+            // Send confirmation back to sender
+            ws.send(JSON.stringify({ 
+              type: 'message_sent', 
+              messageId: message.id 
+            }));
+          } else {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'Missing channelId or directMessageId' 
+            }));
           }
         } else if (data.type === 'typing' && userId) {
           // Handle typing indicator
@@ -176,16 +248,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (data.directMessageId) {
             broadcastToDirectMessage(data.directMessageId, typingData);
           }
+        } else if (!userId) {
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Not authenticated'
+          }));
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
+        ws.send(JSON.stringify({ 
+          type: 'error', 
+          message: 'Invalid message format'
+        }));
       }
     });
 
-    ws.on('close', async () => {
+    ws.on('close', async (code, reason) => {
+      console.log(`WebSocket closed: ${code} ${reason}`);
+      clearInterval(pingInterval);
+      
       if (userId) {
         // Remove client from connected clients
-        const index = clients.findIndex(client => client.userId === userId);
+        const index = clients.findIndex(client => client.userId === userId && client.ws === ws);
         if (index !== -1) {
           clients.splice(index, 1);
         }
@@ -198,39 +282,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clearInterval(pingInterval);
+    });
+    
+    ws.on('pong', () => {
+      // Received pong, connection is alive
+    });
   });
 
   // Helper functions for broadcasting messages
   function broadcastToChannel(channelId: number, data: any) {
     storage.getChannelMembersByChannelId(channelId).then(members => {
       const memberIds = members.map(member => member.userId);
+      
+      // Track how many clients received the message
+      let deliveryCount = 0;
+      const totalEligibleClients = clients.filter(client => 
+        memberIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN
+      ).length;
+      
+      // Prepare message payload
+      const message = {
+        type: data.type || 'message',
+        data,
+        timestamp: new Date().toISOString(),
+        channelId
+      };
+      
+      const messageStr = JSON.stringify(message);
+      
+      // Send to all eligible clients
       clients.forEach(client => {
         if (memberIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN) {
-          client.ws.send(JSON.stringify({
-            type: data.type || 'message',
-            data
-          }));
+          try {
+            client.ws.send(messageStr);
+            deliveryCount++;
+          } catch (error) {
+            console.error(`Failed to send message to client: ${error}`);
+          }
         }
       });
+      
+      console.log(`Message broadcast to channel ${channelId}: ${deliveryCount}/${totalEligibleClients} clients received`);
+    }).catch(error => {
+      console.error(`Error broadcasting to channel ${channelId}:`, error);
     });
   }
 
   function broadcastToDirectMessage(directMessageId: number, data: any) {
     storage.getDirectMessage(directMessageId).then(dm => {
       if (dm) {
+        // Track how many clients received the message
+        let deliveryCount = 0;
+        const eligibleUserIds = [dm.user1Id, dm.user2Id];
+        const totalEligibleClients = clients.filter(client => 
+          eligibleUserIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN
+        ).length;
+        
+        // Prepare message payload
+        const message = {
+          type: data.type || 'message',
+          data,
+          timestamp: new Date().toISOString(),
+          directMessageId
+        };
+        
+        const messageStr = JSON.stringify(message);
+        
+        // Send to both participants
         clients.forEach(client => {
           if ((client.userId === dm.user1Id || client.userId === dm.user2Id) && 
               client.ws.readyState === WebSocket.OPEN) {
-            client.ws.send(JSON.stringify({
-              type: data.type || 'message',
-              data
-            }));
+            try {
+              client.ws.send(messageStr);
+              deliveryCount++;
+            } catch (error) {
+              console.error(`Failed to send message to client: ${error}`);
+            }
           }
         });
+        
+        console.log(`Message broadcast to DM ${directMessageId}: ${deliveryCount}/${totalEligibleClients} clients received`);
       }
+    }).catch(error => {
+      console.error(`Error broadcasting to DM ${directMessageId}:`, error);
     });
   }
 
+  // Demo mode endpoints (only for development)
+  app.get('/api/demo/status', (req: Request, res: Response) => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    res.json({
+      mode: isDevelopment ? 'development' : 'production',
+      features: {
+        demoLoginEnabled: isDevelopment,
+        webSocketEnabled: true,
+        apiVersion: '1.0.0',
+        serverTime: new Date().toISOString()
+      }
+    });
+  });
+  
+  // Direct demo login without password for development only
+  app.post('/api/demo/login', (req: Request, res: Response) => {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (!isDevelopment) {
+      return res.status(404).json({ 
+        message: 'This endpoint is only available in development mode' 
+      });
+    }
+    
+    // Create a demo user session
+    const demoUser = {
+      id: 1,
+      username: 'demo',
+      displayName: 'Demo User',
+      status: 'online',
+      password: 'password'  // This is safe because it's only used in development
+    };
+    
+    req.login(demoUser, (err) => {
+      if (err) {
+        console.error('Demo login error:', err);
+        return res.status(500).json({ message: 'Failed to create demo session' });
+      }
+      
+      console.log('Demo login successful, Session ID:', req.sessionID);
+      
+      // Return user data without password
+      const { password, ...userWithoutPassword } = demoUser;
+      return res.json(userWithoutPassword);
+    });
+  });
+  
   // Authentication endpoints
   app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquare, Users, Bookmark, Settings, Phone, Video } from "lucide-react";
+import { MessageSquare, Users, Bookmark, Settings, Phone, Video, AlertCircle, LogIn } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { connectWebSocket, parseWSMessage } from "@/lib/socket";
 
 // Sample messages for demo
 const SAMPLE_MESSAGES = [
@@ -68,18 +72,122 @@ const SAMPLE_WORKSPACES = [
   { id: 3, name: "Engineering", initials: "EN" }
 ];
 
+interface User {
+  id: number;
+  username: string;
+  displayName: string;
+  status: string;
+}
+
 export default function TestDemo() {
   const [newMessage, setNewMessage] = useState("");
   const [messages, setMessages] = useState(SAMPLE_MESSAGES);
   const [activeTab, setActiveTab] = useState("channels");
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [webSocketConnected, setWebSocketConnected] = useState(false);
+  const [appMode, setAppMode] = useState<{mode: string, features: any} | null>(null);
+  const { toast } = useToast();
+  
+  // Check if we're in development mode
+  useEffect(() => {
+    async function checkAppMode() {
+      try {
+        const response = await apiRequest<{mode: string, features: any}>('/api/demo/status', {
+          method: 'GET'
+        });
+        console.log('App mode:', response);
+        setAppMode(response);
+      } catch (err) {
+        console.error('Failed to check app mode:', err);
+      }
+    }
+    
+    checkAppMode();
+  }, []);
+  
+  // Attempt automatic demo login
+  useEffect(() => {
+    if (appMode?.mode === 'development' && appMode?.features?.demoLoginEnabled) {
+      handleDemoLogin();
+    }
+  }, [appMode]);
+  
+  // WebSocket connection
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    
+    if (user) {
+      // Connect to WebSocket when user is logged in
+      ws = connectWebSocket(user.id);
+      
+      ws.addEventListener('open', () => {
+        setWebSocketConnected(true);
+        toast({
+          title: "WebSocket Connected",
+          description: "Real-time messaging is now available",
+        });
+      });
+      
+      ws.addEventListener('message', (event) => {
+        const data = parseWSMessage(event);
+        console.log('WebSocket message received:', data);
+        
+        if (data?.type === 'message') {
+          // Handle new message from WebSocket
+          const wsMessage = data.data;
+          // Add message to the chat
+          // This would be implemented to handle real messages
+        }
+      });
+      
+      ws.addEventListener('close', () => {
+        setWebSocketConnected(false);
+      });
+    }
+    
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [user, toast]);
+  
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setError("");
+    
+    try {
+      const userData = await apiRequest<User>('/api/demo/login', {
+        method: 'POST'
+      });
+      
+      setUser(userData);
+      toast({
+        title: "Demo Login Successful",
+        description: `Welcome, ${userData.displayName}!`,
+      });
+    } catch (err: any) {
+      console.error('Demo login failed:', err);
+      setError(err?.message || "Failed to login to demo account");
+      toast({
+        title: "Login Failed",
+        description: err?.message || "Could not access demo account",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleSendMessage = () => {
     if (newMessage.trim() === "") return;
     
     const newMsg = {
       id: messages.length + 1,
-      sender: "You",
-      initials: "YO",
+      sender: user?.displayName || "You",
+      initials: user?.displayName?.split(' ').map(n => n[0]).join('') || "YO",
       message: newMessage,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isCurrentUser: true
@@ -88,6 +196,59 @@ export default function TestDemo() {
     setMessages([...messages, newMsg]);
     setNewMessage("");
   };
+  
+  // If user is not logged in, show login screen
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-light-100 dark:bg-dark-300">
+        <Card className="w-[360px]">
+          <CardHeader>
+            <CardTitle>Chat Demo</CardTitle>
+            <CardDescription>
+              Log in to test the cross-platform chat application
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <Button 
+              className="w-full" 
+              onClick={handleDemoLogin} 
+              disabled={loading || !appMode?.features?.demoLoginEnabled}
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-current rounded-full"></div>
+                  Logging in...
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login as Demo User
+                </div>
+              )}
+            </Button>
+            
+            {!appMode?.features?.demoLoginEnabled && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Development Mode Required</AlertTitle>
+                <AlertDescription>
+                  Demo login is only available in development mode. Current mode: {appMode?.mode || "Unknown"}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   return (
     <div className="flex h-screen bg-light-100 dark:bg-dark-300">
@@ -168,11 +329,19 @@ export default function TestDemo() {
         
         <div className="p-4 flex items-center space-x-2 border-t border-light-300 dark:border-dark-700">
           <Avatar>
-            <AvatarFallback>YO</AvatarFallback>
+            <AvatarFallback>
+              {user?.displayName?.split(' ').map(n => n[0]).join('') || ""}
+            </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <div className="font-medium">Your Name</div>
-            <div className="text-xs text-light-600 dark:text-dark-600">Online</div>
+            <div className="font-medium">{user.displayName}</div>
+            <div className="text-xs text-light-600 dark:text-dark-600 flex items-center">
+              <span className="mr-1.5 w-2 h-2 rounded-full bg-green-500"></span>
+              {user.status}
+              {webSocketConnected && (
+                <span className="ml-2 text-xs text-green-500">• WebSocket Connected</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
