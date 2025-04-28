@@ -34,8 +34,14 @@ export async function comparePasswords(supplied: string, stored: string): Promis
 }
 
 export function generateToken(user: User): string {
+  // Ensure avatarUrl is either a string or null, not undefined
+  const sanitizedUser = {
+    ...user,
+    avatarUrl: user.avatarUrl || null
+  };
+  
   return jwt.sign(
-    { id: user.id, username: user.username },
+    { id: sanitizedUser.id, username: sanitizedUser.username },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -136,11 +142,18 @@ export function setupAuth(app: Express) {
         username,
         password: hashedPassword,
         displayName,
-        status: "online"
+        status: "online",
+        avatarUrl: null // Explicitly set to null
       });
 
+      // Ensure avatarUrl is properly set to null if undefined
+      const sanitizedUser = {
+        ...user,
+        avatarUrl: user.avatarUrl || null
+      };
+
       // Log the user in
-      req.login(user, (err) => {
+      req.login(sanitizedUser, (err) => {
         if (err) {
           return res.status(500).json({
             success: false,
@@ -149,7 +162,7 @@ export function setupAuth(app: Express) {
         }
 
         // Generate a JWT token
-        const token = generateToken(user);
+        const token = generateToken(sanitizedUser);
 
         // Return success
         return res.status(201).json({
@@ -186,13 +199,19 @@ export function setupAuth(app: Express) {
         });
       }
 
-      req.login(user, (err) => {
+      // Ensure avatarUrl is properly set to either string or null
+      const sanitizedUser = {
+        ...user,
+        avatarUrl: user.avatarUrl || null
+      };
+      
+      req.login(sanitizedUser, (err) => {
         if (err) {
           return next(err);
         }
 
         // Generate a JWT token
-        const token = generateToken(user);
+        const token = generateToken(sanitizedUser);
 
         // Update user status to online
         storage.updateUserStatus(user.id, "online");

@@ -1,15 +1,18 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/useAuth";
-import { Suspense, lazy, useEffect } from "react";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ChatProvider } from "@/contexts/ChatContext";
+import { CallProvider } from "@/contexts/CallContext";
+import CallUI from "@/components/CallUI";
+import { Suspense, lazy } from "react";
+import { ProtectedRoute } from "@/lib/protected-route";
 
 // Lazy load components for better performance
-const Home = lazy(() => import("@/pages/Home"));
-const Login = lazy(() => import("@/pages/Login"));
-const Register = lazy(() => import("@/pages/Register"));
+const HomePage = lazy(() => import("@/pages/Home"));
+const AuthPage = lazy(() => import("@/pages/auth-page"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const TestDemo = lazy(() => import("@/pages/TestDemo"));
 
@@ -22,34 +25,12 @@ function LoadingSpinner() {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [location, setLocation] = useLocation();
-  
-  // TEMPORARY: Allow direct access to the application for development testing
-  const bypassAuth = true;
-
-  useEffect(() => {
-    // Redirect logic - bypassed for development testing
-    if (!isLoading && !bypassAuth) {
-      if (isAuthenticated && (location === "/login" || location === "/register")) {
-        setLocation("/");
-      } else if (!isAuthenticated && location !== "/login" && location !== "/register") {
-        setLocation("/login");
-      }
-    }
-  }, [isAuthenticated, isLoading, location, setLocation]);
-
-  if (isLoading && !bypassAuth) {
-    return <LoadingSpinner />;
-  }
-
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Switch>
-        <Route path="/login" component={Login} />
-        <Route path="/register" component={Register} />
+        <ProtectedRoute path="/" component={HomePage} />
+        <Route path="/auth" component={AuthPage} />
         <Route path="/demo" component={TestDemo} />
-        <Route path="/" component={bypassAuth ? TestDemo : Home} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
@@ -59,10 +40,17 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <ChatProvider>
+          <CallProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+              <CallUI />
+            </TooltipProvider>
+          </CallProvider>
+        </ChatProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
