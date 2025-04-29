@@ -105,8 +105,11 @@ A full-stack chat application featuring real-time messaging, workspaces, channel
   # Using .env file (recommended)
   npm run dev
 
-  # Or passing variables directly
-  DATABASE_URL=... SESSION_SECRET=... NODE_ENV=development npm run dev
+  # Or passing variables directly (Example 1)
+  # DATABASE_URL=... SESSION_SECRET=... NODE_ENV=development npm run dev
+
+  # Specific example used during setup:
+  DATABASE_URL=postgres://postgres:postgres@localhost:5432/event_sentinel SESSION_SECRET=event-sentinel-secret-key NODE_ENV=development npm run dev
   ```
 
 - Access the application at `http://localhost:3000` (or the configured port).
