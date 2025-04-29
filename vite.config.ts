@@ -11,7 +11,7 @@ export default defineConfig({
     process.env.REPL_ID !== undefined
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
+            m.cartographer()
           ),
         ]
       : []),
@@ -21,11 +21,33 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      events: "events-browserify",
+      util: "util/",
+      stream: "stream-browserify",
+      buffer: "buffer/",
+      process: "process/browser",
+    },
+  },
+  server: {
+    hmr: {
+      port: 3000,
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+  },
+  optimizeDeps: {
+    include: ["simple-peer"],
+    esbuildOptions: {
+      define: {
+        global: "globalThis",
+      },
+    },
+  },
+  define: {
+    global: "globalThis",
+    "process.env": {},
   },
 });

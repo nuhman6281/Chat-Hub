@@ -1,7 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useSocket } from '@/lib/socket';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
+import { useSocket } from "@/lib/socket";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 // Define types for our chat messages and state
 export interface Message {
@@ -70,20 +77,52 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<boolean>;
   loadMoreMessages: () => Promise<boolean>;
   refreshChannels: () => Promise<void>;
-  createChannel: (name: string, isPrivate?: boolean, description?: string) => Promise<Channel | null>;
-  createWorkspace: (name: string, description?: string) => Promise<Workspace | null>;
+  createChannel: (
+    name: string,
+    isPrivate?: boolean,
+    description?: string
+  ) => Promise<Channel | null>;
+  createWorkspace: (
+    name: string,
+    description?: string
+  ) => Promise<Workspace | null>;
   startDirectMessage: (userId: number) => Promise<DirectMessage | null>;
 }
 
 export const ChatContext = createContext<ChatContextType | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const { isConnected, on, send } = useSocket();
+  // Use the AuthContext hook directly
+  // const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Temporarily comment out
+  const user = null; // Temporary
+  const isAuthLoading = false; // Temporary
+  const authError = null; // Temporary
+
+  // Initialize hooks unconditionally at the top level
   const { toast } = useToast();
-  
+  const socket = useSocket();
+
+  // Extract socket methods - do this unconditionally
+  const isConnected = socket.connected;
+  const on = socket.on;
+
+  // Show loading indicator while authentication is in progress
+  /* Temporarily disable loading/error checks based on useAuth
+  if (isAuthLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    ); // Or redirect to login/error page
+  }
+  */
+
+  // If we reach here, auth is resolved (user is either User object or null)
+
   // State
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
+    null
+  );
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -91,7 +130,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  
+
   // Fetch workspaces when user changes
   useEffect(() => {
     if (user) {
@@ -101,7 +140,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setActiveWorkspace(null);
     }
   }, [user]);
-  
+
   // Fetch channels when active workspace changes
   useEffect(() => {
     if (activeWorkspace) {
@@ -111,7 +150,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setActiveChannel(null);
     }
   }, [activeWorkspace]);
-  
+
   // Fetch direct messages when user changes
   useEffect(() => {
     if (user) {
@@ -121,305 +160,305 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setActiveDM(null);
     }
   }, [user]);
-  
+
   // Fetch messages when active channel or DM changes
   useEffect(() => {
     if (activeChannel) {
-      fetchMessages('channel', activeChannel.id);
+      fetchMessages("channel", activeChannel.id);
       setActiveDM(null);
     } else if (activeDM) {
-      fetchMessages('dm', activeDM.id);
+      fetchMessages("dm", activeDM.id);
       setActiveChannel(null);
     } else {
       setMessages([]);
     }
   }, [activeChannel, activeDM]);
-  
+
   // Authenticate WebSocket connection when user and connection are available
-  useEffect(() => {
-    if (user && isConnected) {
-      authenticateWebSocket();
+  const authenticateWebSocket = useCallback(() => {
+    // Ensure we have the user and the socket is connected
+    if (user && socket.connected) {
+      // Use socket.connected directly
+      // Add a small delay to ensure the connection is fully established
+      setTimeout(() => {
+        try {
+          // The socket instance from useSocket() should be stable if we make it a singleton
+          // No need to check typeof socket.send if the hook guarantees the interface
+          socket.send("auth", { userId: user.id });
+          console.log("WebSocket authenticated for user", user.id);
+        } catch (error) {
+          console.error("Failed to authenticate WebSocket:", error);
+        }
+      }, 100);
     }
-  }, [user, isConnected]);
-  
+  }, [user, socket.connected]); // Depend on user and connected status
+
+  // Update the useEffect to call the authentication logic
+  useEffect(() => {
+    authenticateWebSocket();
+  }, [authenticateWebSocket]); // Run when the callback identity changes
+
   // Listen for new messages via WebSocket
   useEffect(() => {
     if (!isConnected) return;
-    
+
     const handleNewMessage = (message: Message) => {
       // Only add message if it belongs to the active conversation
       if (
         (activeChannel && message.channelId === activeChannel.id) ||
         (activeDM && message.directMessageId === activeDM.id)
       ) {
-        setMessages(prev => [message, ...prev]);
+        setMessages((prev) => [message, ...prev]);
       }
-      
+
       // Update last message in direct messages list
       if (message.directMessageId) {
-        setDirectMessages(prev => 
-          prev.map(dm => 
-            dm.id === message.directMessageId 
-              ? { ...dm, lastMessage: message } 
+        setDirectMessages((prev) =>
+          prev.map((dm) =>
+            dm.id === message.directMessageId
+              ? { ...dm, lastMessage: message }
               : dm
           )
         );
       }
     };
-    
-    const unsubscribe = on('new_message', handleNewMessage);
-    
+
+    const unsubscribe = on("new_message", handleNewMessage);
+
     return () => {
       unsubscribe();
     };
   }, [isConnected, activeChannel, activeDM, on]);
-  
+
   // API calls
   const fetchWorkspaces = async () => {
     try {
-      const response = await fetch('/api/workspaces');
+      const response = await fetch("/api/workspaces");
       if (response.ok) {
         const data = await response.json();
         setWorkspaces(data);
-        
+
         // Select first workspace if none is active
         if (data.length > 0 && !activeWorkspace) {
           setActiveWorkspace(data[0]);
         }
       }
     } catch (error) {
-      console.error('Failed to fetch workspaces:', error);
+      console.error("Failed to fetch workspaces:", error);
     }
   };
-  
+
   const fetchChannels = async (workspaceId: number) => {
     try {
       const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
       if (response.ok) {
         const data = await response.json();
         setChannels(data);
-        
+
         // Select first channel if none is active
         if (data.length > 0 && !activeChannel) {
           setActiveChannel(data[0]);
         }
       }
     } catch (error) {
-      console.error('Failed to fetch channels:', error);
+      console.error("Failed to fetch channels:", error);
     }
   };
-  
+
   const fetchDirectMessages = async () => {
     try {
-      const response = await fetch('/api/direct-messages');
+      const response = await fetch("/api/direct-messages");
       if (response.ok) {
         const data = await response.json();
         setDirectMessages(data);
       }
     } catch (error) {
-      console.error('Failed to fetch direct messages:', error);
+      console.error("Failed to fetch direct messages:", error);
     }
   };
-  
-  const fetchMessages = async (type: 'channel' | 'dm', id: number) => {
+
+  const fetchMessages = async (type: "channel" | "dm", id: number) => {
     setIsLoadingMessages(true);
     try {
-      const endpoint = type === 'channel' 
-        ? `/api/channels/${id}/messages` 
-        : `/api/direct-messages/${id}/messages`;
-      
+      const endpoint =
+        type === "channel"
+          ? `/api/channels/${id}/messages`
+          : `/api/direct-messages/${id}/messages`;
+
       const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
       }
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
+      console.error("Failed to fetch messages:", error);
     } finally {
       setIsLoadingMessages(false);
     }
   };
-  
-  const authenticateWebSocket = () => {
-    if (user) {
-      send('auth', { userId: user.id });
-    }
-  };
-  
+
   // Actions
   const sendMessage = async (content: string): Promise<boolean> => {
     if (!user) return false;
-    
+
     try {
       // Determine if sending to channel or DM
       if (activeChannel) {
         // Channel message
-        const result = send('message', {
-          content,
-          channelId: activeChannel.id
-        });
-        
-        if (!result) {
-          toast({
-            title: 'Failed to send message',
-            description: 'Connection is not available. Please try again.',
-            variant: 'destructive'
+        if (socket && typeof socket.send === "function") {
+          socket.send("message", {
+            content,
+            channelId: activeChannel.id,
           });
+          return true;
         }
-        
-        return result;
       } else if (activeDM) {
         // Direct message
-        const result = send('message', {
-          content,
-          directMessageId: activeDM.id
-        });
-        
-        if (!result) {
-          toast({
-            title: 'Failed to send message',
-            description: 'Connection is not available. Please try again.',
-            variant: 'destructive'
+        if (socket && typeof socket.send === "function") {
+          socket.send("message", {
+            content,
+            directMessageId: activeDM.id,
           });
+          return true;
         }
-        
-        return result;
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("Error sending message:", error);
       toast({
-        title: 'Failed to send message',
-        description: 'An error occurred while sending your message.',
-        variant: 'destructive'
+        title: "Failed to send message",
+        description: "An error occurred while sending your message.",
+        variant: "destructive",
       });
     }
-    
+
     return false;
   };
-  
+
   const loadMoreMessages = async (): Promise<boolean> => {
     // This would implement pagination for messages
     // For now, return false
     return false;
   };
-  
+
   const refreshChannels = async (): Promise<void> => {
     if (activeWorkspace) {
       await fetchChannels(activeWorkspace.id);
     }
   };
-  
+
   const createChannel = async (
-    name: string, 
-    isPrivate: boolean = false, 
+    name: string,
+    isPrivate: boolean = false,
     description?: string
   ): Promise<Channel | null> => {
     if (!activeWorkspace || !user) return null;
-    
+
     try {
-      const response = await fetch('/api/channels', {
-        method: 'POST',
+      const response = await fetch("/api/channels", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name,
           workspaceId: activeWorkspace.id,
           isPrivate,
-          description
-        })
+          description,
+        }),
       });
-      
+
       if (response.ok) {
         const newChannel = await response.json();
         // Refresh channels list
         await refreshChannels();
         toast({
-          title: 'Channel created',
-          description: `Channel #${name} has been created.`
+          title: "Channel created",
+          description: `Channel #${name} has been created.`,
         });
         return newChannel;
       } else {
         const error = await response.json();
         toast({
-          title: 'Failed to create channel',
-          description: error.message || 'An error occurred.',
-          variant: 'destructive'
+          title: "Failed to create channel",
+          description: error.message || "An error occurred.",
+          variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error creating channel:', error);
+      console.error("Error creating channel:", error);
       toast({
-        title: 'Failed to create channel',
-        description: 'An error occurred while creating the channel.',
-        variant: 'destructive'
+        title: "Failed to create channel",
+        description: "An error occurred while creating the channel.",
+        variant: "destructive",
       });
     }
-    
+
     return null;
   };
-  
+
   const createWorkspace = async (
-    name: string, 
+    name: string,
     description?: string
   ): Promise<Workspace | null> => {
     if (!user) return null;
-    
+
     try {
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name,
-          description
-        })
+          description,
+        }),
       });
-      
+
       if (response.ok) {
         const newWorkspace = await response.json();
         // Refresh workspaces list
         await fetchWorkspaces();
         toast({
-          title: 'Workspace created',
-          description: `Workspace "${name}" has been created.`
+          title: "Workspace created",
+          description: `Workspace "${name}" has been created.`,
         });
         return newWorkspace;
       } else {
         const error = await response.json();
         toast({
-          title: 'Failed to create workspace',
-          description: error.message || 'An error occurred.',
-          variant: 'destructive'
+          title: "Failed to create workspace",
+          description: error.message || "An error occurred.",
+          variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error creating workspace:', error);
+      console.error("Error creating workspace:", error);
       toast({
-        title: 'Failed to create workspace',
-        description: 'An error occurred while creating the workspace.',
-        variant: 'destructive'
+        title: "Failed to create workspace",
+        description: "An error occurred while creating the workspace.",
+        variant: "destructive",
       });
     }
-    
+
     return null;
   };
-  
-  const startDirectMessage = async (userId: number): Promise<DirectMessage | null> => {
+
+  const startDirectMessage = async (
+    userId: number
+  ): Promise<DirectMessage | null> => {
     if (!user) return null;
-    
+
     try {
-      const response = await fetch('/api/direct-messages', {
-        method: 'POST',
+      const response = await fetch("/api/direct-messages", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId
-        })
+          userId,
+        }),
       });
-      
+
       if (response.ok) {
         const newDM = await response.json();
         // Refresh DM list
@@ -428,23 +467,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } else {
         const error = await response.json();
         toast({
-          title: 'Failed to start conversation',
-          description: error.message || 'An error occurred.',
-          variant: 'destructive'
+          title: "Failed to start conversation",
+          description: error.message || "An error occurred.",
+          variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error starting direct message:', error);
+      console.error("Error starting direct message:", error);
       toast({
-        title: 'Failed to start conversation',
-        description: 'An error occurred while creating the conversation.',
-        variant: 'destructive'
+        title: "Failed to start conversation",
+        description: "An error occurred while creating the conversation.",
+        variant: "destructive",
       });
     }
-    
+
     return null;
   };
-  
+
   return (
     <ChatContext.Provider
       value={{
@@ -465,7 +504,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         refreshChannels,
         createChannel,
         createWorkspace,
-        startDirectMessage
+        startDirectMessage,
       }}
     >
       {children}
@@ -476,7 +515,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 export function useChat() {
   const context = useContext(ChatContext);
   if (!context) {
-    throw new Error('useChat must be used within a ChatProvider');
+    throw new Error("useChat must be used within a ChatProvider");
   }
   return context;
 }

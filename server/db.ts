@@ -1,10 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
-
-// Configure WebSockets for NeonDB connection
-neonConfig.webSocketConstructor = ws;
 
 // Verify that the DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
@@ -14,16 +10,17 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Create a connection pool
-export const pool = new Pool({ 
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Enable SSL to ensure secure connections to the database
-  ssl: true,
+  // Disable SSL for local Postgres container
+  ssl: false,
 });
 
 // Initialize the Drizzle ORM with our schema
 export const db = drizzle(pool, { schema });
 
 // Log successful connection
-pool.connect()
-  .then(() => console.log('Connected to PostgreSQL database'))
-  .catch(err => console.error('Database connection error:', err));
+pool
+  .connect()
+  .then(() => console.log("Connected to PostgreSQL database"))
+  .catch((err) => console.error("Database connection error:", err));
