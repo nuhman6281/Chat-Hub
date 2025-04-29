@@ -14,10 +14,17 @@ const patchViteWebSocket = () => {
   // @ts-ignore - Need to override WebSocket constructor
   window.WebSocket = function (url: string, protocols?: string | string[]) {
     if (url && typeof url === "string") {
-      // Hardcode localhost to use port 3000
-      if (url.includes("localhost")) {
-        url = url.replace(/localhost(?::undefined)?/, "localhost:3000");
-        console.log("Using fixed WebSocket URL:", url);
+      // Handle Vite HMR WebSocket
+      if (url.includes("localhost:undefined")) {
+        console.log("[WebSocket Patch] Fixing Vite HMR URL:", url);
+        url = url.replace("localhost:undefined", "localhost:3001");
+        return new originalWebSocket(url, protocols);
+      }
+
+      // Handle application WebSocket
+      if (url.includes("/api/ws")) {
+        console.log("[WebSocket Patch] Using application WebSocket URL:", url);
+        return new originalWebSocket(url, protocols);
       }
 
       // Ensure proper WS protocol is used
@@ -33,16 +40,12 @@ const patchViteWebSocket = () => {
       try {
         new URL(url);
       } catch (e) {
-        console.error("Invalid WebSocket URL:", url);
-        // Fallback to a safe default if URL is invalid
-        if (url.includes("token=")) {
-          const tokenMatch = url.match(/token=([^&]*)/);
-          const token = tokenMatch ? tokenMatch[1] : "";
-          url = `ws://localhost:3000/?token=${token}`;
-        } else {
-          url = "ws://localhost:3000/";
-        }
-        console.log("Using fallback WebSocket URL:", url);
+        console.error("[WebSocket Patch] Invalid URL:", url);
+        // Extract token if present
+        const tokenMatch = url.match(/token=([^&]*)/);
+        const token = tokenMatch ? tokenMatch[1] : "";
+        url = `ws://localhost:3000/api/ws?token=${token}`;
+        console.log("[WebSocket Patch] Using fallback URL:", url);
       }
     }
     return new originalWebSocket(url, protocols);
@@ -76,11 +79,7 @@ if (typeof window !== "undefined") {
 function AppWithProviders() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <ChatProvider>
-          <App />
-        </ChatProvider>
-      </AuthProvider>
+      <App />
     </ThemeProvider>
   );
 }

@@ -9,57 +9,16 @@ import React, {
 import { useSocket } from "@/lib/socket";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import {
+  User,
+  Workspace,
+  Channel,
+  Message,
+  DirectMessage,
+} from "@shared/schema";
 
 // Define types for our chat messages and state
-export interface Message {
-  id: number;
-  content: string;
-  createdAt: string;
-  userId: number;
-  channelId?: number;
-  directMessageId?: number;
-  user: {
-    id: number;
-    username: string;
-    displayName: string;
-    avatarUrl?: string | null;
-  };
-}
-
-export interface Channel {
-  id: number;
-  name: string;
-  workspaceId: number;
-  description?: string;
-  isPrivate: boolean;
-  memberCount: number;
-}
-
-export interface DirectMessage {
-  id: number;
-  user1Id: number;
-  user2Id: number;
-  createdAt: string;
-  otherUser: {
-    id: number;
-    username: string;
-    displayName: string;
-    status: string;
-    avatarUrl?: string | null;
-  };
-  lastMessage?: Message;
-}
-
-export interface Workspace {
-  id: number;
-  name: string;
-  ownerId: number;
-  description?: string;
-  iconUrl?: string;
-}
-
 interface ChatContextType {
-  // State
   activeWorkspace: Workspace | null;
   workspaces: Workspace[];
   activeChannel: Channel | null;
@@ -69,64 +28,44 @@ interface ChatContextType {
   messages: Message[];
   isLoadingMessages: boolean;
   isConnected: boolean;
-
-  // Actions
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setActiveChannel: (channel: Channel | null) => void;
   setActiveDM: (dm: DirectMessage | null) => void;
   sendMessage: (content: string) => Promise<boolean>;
-  loadMoreMessages: () => Promise<boolean>;
-  refreshChannels: () => Promise<void>;
-  createChannel: (
-    name: string,
-    isPrivate?: boolean,
-    description?: string
-  ) => Promise<Channel | null>;
+  loadMoreMessages: () => Promise<void>;
   createWorkspace: (
     name: string,
-    description?: string
+    iconText: string
   ) => Promise<Workspace | null>;
-  startDirectMessage: (userId: number) => Promise<DirectMessage | null>;
+  createChannel: (
+    name: string,
+    isPrivate: boolean,
+    description?: string
+  ) => Promise<Channel | null>;
+  refreshChannels: () => Promise<void>;
+  reconnectSocket: () => void;
 }
 
 export const ChatContext = createContext<ChatContextType | null>(null);
 
-export function ChatProvider({ children }: { children: ReactNode }) {
-  // Use the AuthContext hook directly
-  // const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Temporarily comment out
-  const user = null; // Temporary
-  const isAuthLoading = false; // Temporary
-  const authError = null; // Temporary
-
-  // Initialize hooks unconditionally at the top level
+export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const socket = useSocket();
-
-  // Extract socket methods - do this unconditionally
-  const isConnected = socket.connected;
-  const on = socket.on;
-
-  // Show loading indicator while authentication is in progress
-  /* Temporarily disable loading/error checks based on useAuth
-  if (isAuthLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen w-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    ); // Or redirect to login/error page
-  }
-  */
-
-  // If we reach here, auth is resolved (user is either User object or null)
+  const [isConnected, setIsConnected] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // State
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(
     null
   );
+  const [currentChannel, setCurrentChannel] = useState<Channel | null>(null);
+  const [currentDirectMessage, setCurrentDirectMessage] =
+    useState<DirectMessage | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [activeDM, setActiveDM] = useState<DirectMessage | null>(null);
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -137,19 +76,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       fetchWorkspaces();
     } else {
       setWorkspaces([]);
-      setActiveWorkspace(null);
+      setCurrentWorkspace(null);
     }
   }, [user]);
 
   // Fetch channels when active workspace changes
   useEffect(() => {
-    if (activeWorkspace) {
-      fetchChannels(activeWorkspace.id);
+    if (currentWorkspace) {
+      fetchChannels(currentWorkspace.id);
     } else {
       setChannels([]);
-      setActiveChannel(null);
+      setCurrentChannel(null);
     }
-  }, [activeWorkspace]);
+  }, [currentWorkspace]);
 
   // Fetch direct messages when user changes
   useEffect(() => {
@@ -157,56 +96,153 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       fetchDirectMessages();
     } else {
       setDirectMessages([]);
-      setActiveDM(null);
+      setCurrentDirectMessage(null);
     }
   }, [user]);
 
   // Fetch messages when active channel or DM changes
   useEffect(() => {
-    if (activeChannel) {
-      fetchMessages("channel", activeChannel.id);
-      setActiveDM(null);
-    } else if (activeDM) {
-      fetchMessages("dm", activeDM.id);
-      setActiveChannel(null);
+    if (currentChannel) {
+      fetchMessages("channel", currentChannel.id);
+      setCurrentDirectMessage(null);
+    } else if (currentDirectMessage) {
+      fetchMessages("dm", currentDirectMessage.id);
+      setCurrentChannel(null);
     } else {
       setMessages([]);
     }
-  }, [activeChannel, activeDM]);
+  }, [currentChannel, currentDirectMessage]);
 
-  // Authenticate WebSocket connection when user and connection are available
-  const authenticateWebSocket = useCallback(() => {
-    // Ensure we have the user and the socket is connected
-    if (user && socket.connected) {
-      // Use socket.connected directly
-      // Add a small delay to ensure the connection is fully established
-      setTimeout(() => {
-        try {
-          // The socket instance from useSocket() should be stable if we make it a singleton
-          // No need to check typeof socket.send if the hook guarantees the interface
-          socket.send("auth", { userId: user.id });
-          console.log("WebSocket authenticated for user", user.id);
-        } catch (error) {
-          console.error("Failed to authenticate WebSocket:", error);
-        }
-      }, 100);
-    }
-  }, [user, socket.connected]); // Depend on user and connected status
-
-  // Update the useEffect to call the authentication logic
+  // Handle socket connection state
   useEffect(() => {
-    authenticateWebSocket();
-  }, [authenticateWebSocket]); // Run when the callback identity changes
+    let authTimeoutId: NodeJS.Timeout;
+
+    // Define event handlers
+    const handleConnect = () => {
+      console.log("ChatContext: Socket connected event received");
+      setIsConnected(true);
+
+      // Authenticate immediately after connection
+      if (user) {
+        setTimeout(() => {
+          console.log("ChatContext: Authenticating after connection");
+          const success = socket.authenticate();
+          if (!success) {
+            console.error("ChatContext: Initial authentication failed");
+          }
+        }, 100); // Short delay to ensure connection is fully established
+      }
+    };
+
+    const handleDisconnect = () => {
+      console.log("ChatContext: Socket disconnected event received");
+      setIsConnected(false);
+      setIsAuthenticated(false);
+    };
+
+    const handleAuthSuccess = (data: any) => {
+      console.log("ChatContext: Authentication successful", data);
+      setIsAuthenticated(true);
+
+      // Clear any pending authentication timeout
+      if (authTimeoutId) {
+        clearTimeout(authTimeoutId);
+      }
+
+      toast({
+        title: "Connected",
+        description: "WebSocket connection established and authenticated.",
+      });
+    };
+
+    const handleAuthError = (error: any) => {
+      // This handler now catches general socket errors too
+      console.error("ChatContext: Received error from socket", error);
+      const errorMessage = error?.message || "An unknown error occurred.";
+
+      // Check if it's specifically an authentication error
+      if (
+        errorMessage.toLowerCase().includes("authenticate") ||
+        errorMessage.toLowerCase().includes("auth")
+      ) {
+        setIsAuthenticated(false);
+        toast({
+          title: "Authentication Error",
+          description: `Failed to authenticate WebSocket connection: ${errorMessage}. Please try refreshing.`,
+          variant: "destructive",
+        });
+      } else {
+        // Handle other errors (like message sending errors)
+        toast({
+          title: "Server Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    };
+
+    const handleMessage = (data: any) => {
+      console.log("ChatContext: Message received", data);
+      if (data.type === "message" || (data.data && data.data.content)) {
+        // Handle incoming message - normalize data structure
+        const message = data.data || data;
+        if (
+          (currentChannel && message.channelId === currentChannel.id) ||
+          (currentDirectMessage &&
+            message.directMessageId === currentDirectMessage.id)
+        ) {
+          setMessages((prev) => [message, ...prev]);
+        }
+      }
+    };
+
+    // Set up event listeners
+    const cleanupConnect = socket.on("connect", handleConnect);
+    const cleanupDisconnect = socket.on("disconnect", handleDisconnect);
+    const cleanupAuthSuccess = socket.on("auth_success", handleAuthSuccess);
+    const cleanupError = socket.on("error", handleAuthError);
+    const cleanupMessage = socket.on("message", handleMessage);
+
+    // Connect socket when user is available and setup retry logic
+    if (user) {
+      console.log("ChatContext: Connecting socket for user:", user.id);
+      socket.connect(String(user.id));
+
+      // Set a timeout to retry authentication if it doesn't succeed
+      authTimeoutId = setTimeout(() => {
+        if (!isAuthenticated && isConnected) {
+          console.log(
+            "ChatContext: Authentication timeout - retrying authentication"
+          );
+          socket.authenticate();
+        }
+      }, 2000);
+    }
+
+    // Clean up event listeners and timeout
+    return () => {
+      if (authTimeoutId) {
+        clearTimeout(authTimeoutId);
+      }
+      cleanupConnect();
+      cleanupDisconnect();
+      cleanupAuthSuccess();
+      cleanupError();
+      cleanupMessage();
+    };
+  }, [socket, user, toast, currentChannel, currentDirectMessage]);
 
   // Listen for new messages via WebSocket
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected || !isAuthenticated) return;
 
     const handleNewMessage = (message: Message) => {
+      console.log("New message received:", message);
       // Only add message if it belongs to the active conversation
       if (
-        (activeChannel && message.channelId === activeChannel.id) ||
-        (activeDM && message.directMessageId === activeDM.id)
+        (currentChannel && message.channelId === currentChannel.id) ||
+        (currentDirectMessage &&
+          message.directMessageId === currentDirectMessage.id)
       ) {
         setMessages((prev) => [message, ...prev]);
       }
@@ -223,12 +259,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const unsubscribe = on("new_message", handleNewMessage);
+    const unsubscribe = socket.on("new_message", handleNewMessage);
 
     return () => {
       unsubscribe();
     };
-  }, [isConnected, activeChannel, activeDM, on]);
+  }, [
+    isConnected,
+    isAuthenticated,
+    currentChannel,
+    currentDirectMessage,
+    socket,
+  ]);
 
   // API calls
   const fetchWorkspaces = async () => {
@@ -239,8 +281,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setWorkspaces(data);
 
         // Select first workspace if none is active
-        if (data.length > 0 && !activeWorkspace) {
-          setActiveWorkspace(data[0]);
+        if (data.length > 0 && !currentWorkspace) {
+          setCurrentWorkspace(data[0]);
         }
       }
     } catch (error) {
@@ -256,8 +298,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setChannels(data);
 
         // Select first channel if none is active
-        if (data.length > 0 && !activeChannel) {
-          setActiveChannel(data[0]);
+        if (data.length > 0 && !currentChannel) {
+          setCurrentChannel(data[0]);
         }
       }
     } catch (error) {
@@ -298,51 +340,127 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   // Actions
-  const sendMessage = async (content: string): Promise<boolean> => {
-    if (!user) return false;
-
-    try {
-      // Determine if sending to channel or DM
-      if (activeChannel) {
-        // Channel message
-        if (socket && typeof socket.send === "function") {
-          socket.send("message", {
-            content,
-            channelId: activeChannel.id,
-          });
-          return true;
-        }
-      } else if (activeDM) {
-        // Direct message
-        if (socket && typeof socket.send === "function") {
-          socket.send("message", {
-            content,
-            directMessageId: activeDM.id,
-          });
-          return true;
-        }
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!user) {
+        console.error("Cannot send message: User not authenticated");
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to send messages.",
+          variant: "destructive",
+        });
+        return false;
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Failed to send message",
-        description: "An error occurred while sending your message.",
-        variant: "destructive",
-      });
-    }
 
-    return false;
-  };
+      if (!isConnected) {
+        console.error("Cannot send message: Socket not connected");
+        toast({
+          title: "Connection Error",
+          description: "Please wait while we reconnect to the server.",
+          variant: "destructive",
+        });
+        // Attempt to reconnect
+        try {
+          console.log("Attempting to reconnect socket for user:", user.id);
+          socket.connect(String(user.id));
+        } catch (error) {
+          console.error("Failed to reconnect:", error);
+        }
+        return false;
+      }
 
-  const loadMoreMessages = async (): Promise<boolean> => {
+      if (!isAuthenticated) {
+        console.error("Cannot send message: Socket not authenticated");
+        toast({
+          title: "Authentication Error",
+          description: "Please wait while we authenticate your connection.",
+          variant: "destructive",
+        });
+        // Attempt to re-authenticate
+        try {
+          console.log(
+            "Attempting to re-authenticate socket for user:",
+            user.id
+          );
+          socket.authenticate();
+
+          // Give some time for authentication to complete
+          setTimeout(() => {
+            if (!isAuthenticated) {
+              console.log(
+                "Authentication timeout - please try sending your message again"
+              );
+            }
+          }, 2000);
+        } catch (error) {
+          console.error("Failed to re-authenticate:", error);
+        }
+        return false;
+      }
+
+      if (!currentChannel && !currentDirectMessage) {
+        console.error(
+          "Cannot send message: No active channel or direct message"
+        );
+        toast({
+          title: "No Active Conversation",
+          description: "Please select a channel or direct message to send to.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      try {
+        const messageData = {
+          content,
+          userId: user.id,
+          ...(currentChannel && { channelId: currentChannel.id }),
+          ...(currentDirectMessage && {
+            directMessageId: currentDirectMessage.id,
+          }),
+        };
+
+        console.log("Sending message:", messageData);
+        const success = socket.send("message", messageData);
+        if (!success) {
+          toast({
+            title: "Failed to send message",
+            description: "Could not send message. Please try again.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error("Error sending message:", error);
+        toast({
+          title: "Failed to send message",
+          description: "An error occurred while sending your message.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [
+      user,
+      isConnected,
+      isAuthenticated,
+      currentChannel,
+      currentDirectMessage,
+      socket,
+      toast,
+    ]
+  );
+
+  const loadMoreMessages = async (): Promise<void> => {
     // This would implement pagination for messages
-    // For now, return false
-    return false;
+    // For now, just return
+    return;
   };
 
   const refreshChannels = async (): Promise<void> => {
-    if (activeWorkspace) {
-      await fetchChannels(activeWorkspace.id);
+    if (currentWorkspace) {
+      await fetchChannels(currentWorkspace.id);
     }
   };
 
@@ -351,7 +469,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     isPrivate: boolean = false,
     description?: string
   ): Promise<Channel | null> => {
-    if (!activeWorkspace || !user) return null;
+    if (!currentWorkspace || !user) return null;
 
     try {
       const response = await fetch("/api/channels", {
@@ -361,7 +479,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({
           name,
-          workspaceId: activeWorkspace.id,
+          workspaceId: currentWorkspace.id,
           isPrivate,
           description,
         }),
@@ -398,7 +516,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const createWorkspace = async (
     name: string,
-    description?: string
+    iconText: string
   ): Promise<Workspace | null> => {
     if (!user) return null;
 
@@ -410,7 +528,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({
           name,
-          description,
+          iconText,
+          ownerId: user.id,
         }),
       });
 
@@ -443,74 +562,68 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const startDirectMessage = async (
-    userId: number
-  ): Promise<DirectMessage | null> => {
-    if (!user) return null;
+  // Add reconnect function with better authentication handling
+  const reconnectSocket = useCallback(() => {
+    if (user) {
+      console.log("Manually reconnecting socket for user:", user.id);
+      setIsConnected(false);
+      setIsAuthenticated(false);
 
-    try {
-      const response = await fetch("/api/direct-messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId,
-        }),
-      });
+      // Force disconnect then reconnect
+      socket.disconnect();
 
-      if (response.ok) {
-        const newDM = await response.json();
-        // Refresh DM list
-        await fetchDirectMessages();
-        return newDM;
-      } else {
-        const error = await response.json();
+      // Wait a bit then reconnect
+      setTimeout(() => {
         toast({
-          title: "Failed to start conversation",
-          description: error.message || "An error occurred.",
-          variant: "destructive",
+          title: "Reconnecting",
+          description: "Attempting to reconnect to the server...",
         });
-      }
-    } catch (error) {
-      console.error("Error starting direct message:", error);
+        socket.connect(String(user.id));
+
+        // Wait a bit more then authenticate
+        setTimeout(() => {
+          if (isConnected && !isAuthenticated) {
+            console.log("Authenticating after manual reconnect");
+            socket.authenticate();
+          }
+        }, 1000);
+      }, 500);
+    } else {
       toast({
-        title: "Failed to start conversation",
-        description: "An error occurred while creating the conversation.",
+        title: "Authentication Error",
+        description: "You must be logged in to connect.",
         variant: "destructive",
       });
     }
-
-    return null;
-  };
+  }, [user, socket, toast, isConnected, isAuthenticated]);
 
   return (
     <ChatContext.Provider
       value={{
-        activeWorkspace,
+        activeWorkspace: currentWorkspace,
         workspaces,
-        activeChannel,
+        activeChannel: currentChannel,
         channels,
-        activeDM,
+        activeDM: currentDirectMessage,
         directMessages,
         messages,
         isLoadingMessages,
         isConnected,
-        setActiveWorkspace,
-        setActiveChannel,
-        setActiveDM,
+        setActiveWorkspace: setCurrentWorkspace,
+        setActiveChannel: setCurrentChannel,
+        setActiveDM: setCurrentDirectMessage,
         sendMessage,
         loadMoreMessages,
-        refreshChannels,
-        createChannel,
         createWorkspace,
-        startDirectMessage,
+        createChannel,
+        refreshChannels,
+        reconnectSocket,
       }}
     >
       {children}
     </ChatContext.Provider>
   );
-}
+};
 
 export function useChat() {
   const context = useContext(ChatContext);

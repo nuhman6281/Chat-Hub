@@ -1,54 +1,75 @@
-import React, { useState } from 'react';
-import { useLocation } from 'wouter';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Loader2 } from "lucide-react";
 
 // Login form schema
 const loginSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 // Registration form schema
-const registerSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-  displayName: z.string().min(2, 'Display name must be at least 2 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const registerSchema = z
+  .object({
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    displayName: z
+      .string()
+      .min(2, "Display name must be at least 2 characters"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z
+      .string()
+      .min(6, "Password must be at least 6 characters"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState("login");
   const [, navigate] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
 
-  // If user is already logged in, redirect to home
-  if (user) {
-    navigate('/');
-    return null;
-  }
+  // Use useEffect for navigation to avoid state updates during render
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: '',
-      password: '',
+      username: "",
+      password: "",
     },
   });
 
@@ -56,10 +77,10 @@ export default function AuthPage() {
   const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: '',
-      displayName: '',
-      password: '',
-      confirmPassword: '',
+      username: "",
+      displayName: "",
+      password: "",
+      confirmPassword: "",
     },
   });
 
@@ -67,7 +88,7 @@ export default function AuthPage() {
   const onLoginSubmit = (values: LoginFormValues) => {
     loginMutation.mutate(values, {
       onSuccess: () => {
-        navigate('/');
+        navigate("/");
       },
     });
   };
@@ -77,10 +98,15 @@ export default function AuthPage() {
     const { confirmPassword, ...registrationData } = values;
     registerMutation.mutate(registrationData, {
       onSuccess: () => {
-        navigate('/');
+        navigate("/");
       },
     });
   };
+
+  // If user is already logged in, return null
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
@@ -88,7 +114,9 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Welcome to ChatHub</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">
+              Welcome to ChatHub
+            </CardTitle>
             <CardDescription className="text-center">
               Sign in to your account or create a new one to get started.
             </CardDescription>
@@ -103,12 +131,15 @@ export default function AuthPage() {
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
-            
+
             {/* Login Form */}
             <TabsContent value="login">
               <CardContent className="pt-4">
                 <Form {...loginForm}>
-                  <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                  <form
+                    onSubmit={loginForm.handleSubmit(onLoginSubmit)}
+                    className="space-y-4"
+                  >
                     <FormField
                       control={loginForm.control}
                       name="username"
@@ -116,7 +147,10 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Username</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter your username" {...field} />
+                            <Input
+                              placeholder="Enter your username"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -129,15 +163,19 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
-                            <Input type="password" placeholder="Enter your password" {...field} />
+                            <Input
+                              type="password"
+                              placeholder="Enter your password"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
+                    <Button
+                      type="submit"
+                      className="w-full"
                       disabled={loginMutation.isPending}
                     >
                       {loginMutation.isPending ? (
@@ -146,7 +184,7 @@ export default function AuthPage() {
                           Logging in...
                         </>
                       ) : (
-                        'Login'
+                        "Login"
                       )}
                     </Button>
                   </form>
@@ -154,23 +192,26 @@ export default function AuthPage() {
               </CardContent>
               <CardFooter>
                 <div className="text-sm text-muted-foreground w-full text-center">
-                  Don't have an account?{' '}
-                  <Button 
-                    variant="link" 
-                    className="p-0" 
-                    onClick={() => setActiveTab('register')}
+                  Don't have an account?{" "}
+                  <Button
+                    variant="link"
+                    className="p-0"
+                    onClick={() => setActiveTab("register")}
                   >
                     Sign up now
                   </Button>
                 </div>
               </CardFooter>
             </TabsContent>
-            
+
             {/* Register Form */}
             <TabsContent value="register">
               <CardContent className="pt-4">
                 <Form {...registerForm}>
-                  <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+                  <form
+                    onSubmit={registerForm.handleSubmit(onRegisterSubmit)}
+                    className="space-y-4"
+                  >
                     <FormField
                       control={registerForm.control}
                       name="username"
@@ -191,7 +232,10 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Display Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter your display name" {...field} />
+                            <Input
+                              placeholder="Enter your display name"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -204,7 +248,11 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
-                            <Input type="password" placeholder="Choose a password" {...field} />
+                            <Input
+                              type="password"
+                              placeholder="Choose a password"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -217,15 +265,19 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Confirm Password</FormLabel>
                           <FormControl>
-                            <Input type="password" placeholder="Confirm your password" {...field} />
+                            <Input
+                              type="password"
+                              placeholder="Confirm your password"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
+                    <Button
+                      type="submit"
+                      className="w-full"
                       disabled={registerMutation.isPending}
                     >
                       {registerMutation.isPending ? (
@@ -234,7 +286,7 @@ export default function AuthPage() {
                           Creating account...
                         </>
                       ) : (
-                        'Create Account'
+                        "Create Account"
                       )}
                     </Button>
                   </form>
@@ -242,11 +294,11 @@ export default function AuthPage() {
               </CardContent>
               <CardFooter>
                 <div className="text-sm text-muted-foreground w-full text-center">
-                  Already have an account?{' '}
-                  <Button 
-                    variant="link" 
-                    className="p-0" 
-                    onClick={() => setActiveTab('login')}
+                  Already have an account?{" "}
+                  <Button
+                    variant="link"
+                    className="p-0"
+                    onClick={() => setActiveTab("login")}
                   >
                     Sign in
                   </Button>
@@ -256,13 +308,16 @@ export default function AuthPage() {
           </Tabs>
         </Card>
       </div>
-      
+
       {/* Right Column - Hero Section */}
       <div className="flex-1 bg-gradient-to-r from-primary/90 to-primary-foreground p-6 flex flex-col justify-center items-center text-white">
         <div className="max-w-md">
-          <h1 className="text-4xl font-bold mb-6">Connect with your team in real time.</h1>
+          <h1 className="text-4xl font-bold mb-6">
+            Connect with your team in real time.
+          </h1>
           <p className="text-lg mb-6">
-            ChatHub brings together messaging, voice/video calls, and community features in one seamless application.
+            ChatHub brings together messaging, voice/video calls, and community
+            features in one seamless application.
           </p>
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="flex flex-col">

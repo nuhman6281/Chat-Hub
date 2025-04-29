@@ -29,8 +29,18 @@ export default defineConfig({
     },
   },
   server: {
+    port: 3000,
     hmr: {
-      port: 3000,
+      port: 3001,
+      protocol: "ws",
+      host: "localhost",
+      clientPort: 3001,
+    },
+    proxy: {
+      "/api/ws": {
+        target: "ws://localhost:3000",
+        ws: true,
+      },
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
