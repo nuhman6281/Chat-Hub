@@ -1,57 +1,75 @@
-import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ChatProvider } from "@/contexts/ChatContext";
-import { CallProvider } from "@/contexts/CallContext";
-import CallUI from "@/components/CallUI";
-import { Suspense, lazy } from "react";
-import { ProtectedRoute } from "@/lib/protected-route";
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
+import HomePage from "./pages/Home";
+import AuthPage from "./pages/auth-page";
+import InvitePage from "./pages/InvitePage";
+import TestDemo from "./pages/TestDemo";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ChatProvider } from "./contexts/ChatContext";
+import { CallProvider } from "./contexts/CallContext";
+import { useAuth } from "./contexts/AuthContext";
 
-// Lazy load components for better performance
-const HomePage = lazy(() => import("@/pages/Home"));
-const AuthPage = lazy(() => import("@/pages/auth-page"));
-const NotFound = lazy(() => import("@/pages/not-found"));
-const TestDemo = lazy(() => import("@/pages/TestDemo"));
+// Protected route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
 
-function LoadingSpinner() {
-  return (
-    <div className="flex items-center justify-center h-screen w-full">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-    </div>
+  console.log(
+    `ProtectedRoute: Path=${
+      location.pathname
+    }, isLoading=${isLoading}, userExists=${!!user}`
   );
-}
 
-function Router() {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <Switch>
-        <ProtectedRoute path="/" component={HomePage} />
-        <Route path="/auth" component={AuthPage} />
-        <Route path="/demo" component={TestDemo} />
-        <Route component={NotFound} />
-      </Switch>
-    </Suspense>
-  );
-}
+  // Show loading state or redirect if not authenticated
+  if (isLoading) {
+    console.log("ProtectedRoute: Showing Loading...");
+    return <div>Loading...</div>;
+  }
+  if (!user) {
+    console.log("ProtectedRoute: No user, redirecting to /auth");
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  console.log("ProtectedRoute: User exists, rendering children");
+  return <>{children}</>;
+};
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <Router>
       <AuthProvider>
         <ChatProvider>
           <CallProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Router />
-              <CallUI />
-            </TooltipProvider>
+            <Routes>
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/invite/:token" element={<InvitePage />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <HomePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/test"
+                element={
+                  <ProtectedRoute>
+                    <TestDemo />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
           </CallProvider>
         </ChatProvider>
       </AuthProvider>
-    </QueryClientProvider>
+    </Router>
   );
 }
 

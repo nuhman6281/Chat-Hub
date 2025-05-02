@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,15 +54,8 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
-  const [, navigate] = useLocation();
-  const { user, loginMutation, registerMutation } = useAuth();
-
-  // Use useEffect for navigation to avoid state updates during render
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
+  const navigate = useNavigate();
+  const { user, isLoading, loginMutation, registerMutation } = useAuth();
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -87,9 +80,7 @@ export default function AuthPage() {
   // Handle login form submission
   const onLoginSubmit = (values: LoginFormValues) => {
     loginMutation.mutate(values, {
-      onSuccess: () => {
-        navigate("/");
-      },
+      // onSuccess is handled by ProtectedRoute reacting to user state change
     });
   };
 
@@ -97,15 +88,23 @@ export default function AuthPage() {
   const onRegisterSubmit = (values: RegisterFormValues) => {
     const { confirmPassword, ...registrationData } = values;
     registerMutation.mutate(registrationData, {
-      onSuccess: () => {
-        navigate("/");
-      },
+      // onSuccess is handled by ProtectedRoute reacting to user state change
     });
   };
 
-  // If user is already logged in, return null
+  // If loading authentication state, show a loading indicator
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If user is already logged in (and not loading), redirect to home
+  // This replaces the useEffect logic
   if (user) {
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   return (

@@ -26,6 +26,17 @@ interface ConnectedClient {
   ws: WebSocket;
 }
 
+// Define the schema for adding by email
+const addMemberByEmailSchema = z.object({
+  email: z.string().email({ message: "Invalid email address provided." }),
+  // workspaceId: z.number().int(), // We get this from req.params.id
+  role: z.enum(["admin", "member"], {
+    errorMap: () => ({
+      message: "Invalid role specified. Must be 'admin' or 'member'.",
+    }),
+  }),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with our centralized auth module
   setupAuth(app);
@@ -784,34 +795,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ensureAuthenticated,
     async (req: Request, res: Response) => {
       try {
+        // 1. Get IDs from request
         const workspaceId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
-        const validatedData = insertWorkspaceMemberSchema.parse({
-          ...req.body,
-          workspaceId,
-        });
-
-        // Check if the user is a member of the workspace
-        const isUserInWorkspace = await storage.isUserInWorkspace(
-          userId,
-          workspaceId
-        );
-        if (!isUserInWorkspace) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this workspace" });
-        }
-
-        // Add member to workspace
-        const member = await storage.addWorkspaceMember(validatedData);
-        res.status(201).json(member);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
+        if (isNaN(workspaceId)) {
           return res
             .status(400)
-            .json({ message: "Invalid member data", errors: error.errors });
+            .json({ message: "Invalid workspace ID format." });
         }
-        res.status(500).json({ message: "Failed to add member to workspace" });
+        // Ensure req.user exists and has an id property
+        const requesterUser = req.user as { id?: number };
+        if (!requesterUser || typeof requesterUser.id !== "number") {
+          return res.status(401).json({ message: "Authentication required." });
+        }
+        const requesterId = requesterUser.id;
+
+        // 2. Validate request body (email and role)
+        const validatedData = addMemberByEmailSchema.parse(req.body);
+        const { email, role } = validatedData;
+
+        // 3. Permission Check: Requester must be OWNER or ADMIN
+        const requesterMembership = await storage.getWorkspaceMember(
+          requesterId,
+          workspaceId
+        );
+        if (
+          !requesterMembership ||
+          !["owner", "admin"].includes(requesterMembership.role)
+        ) {
+          return res.status(403).json({
+            message:
+              "Permission denied: You must be an owner or admin to add members.",
+          });
+        }
+
+        // 4. Find the target user by email
+        const targetUser = await storage.getUserByEmail(email);
+        if (!targetUser) {
+          return res.status(404).json({
+            message: `User with email ${email} not found. Please ask them to register first.`,
+          });
+        }
+        const targetUserId = targetUser.id;
+
+        // 5. Check if the target user is already a member
+        const isTargetAlreadyMember = await storage.isUserInWorkspace(
+          targetUserId,
+          workspaceId
+        );
+        if (isTargetAlreadyMember) {
+          return res
+            .status(409) // Conflict
+            .json({
+              message: `User ${email} is already a member of this workspace.`,
+            });
+        }
+
+        // 6. Add member to workspace using the found userId
+        const memberData = {
+          userId: targetUserId,
+          workspaceId: workspaceId,
+          role: role,
+        };
+        const newMember = await storage.addWorkspaceMember(memberData);
+
+        // 7. Return success response
+        // Simply return the object created by addWorkspaceMember
+        // const createdMemberWithDetails =
+        //   await storage.getWorkspaceMemberDetails(
+        //     newMember.id // Assuming addWorkspaceMember returns an object with the new membership ID
+        //   );
+
+        res.status(201).json(newMember); // Send the newly created member object
+      } catch (error) {
+        // Handle Zod validation errors specifically
+        if (error instanceof z.ZodError) {
+          // Provide structured validation errors
+          return res.status(400).json({
+            message: "Invalid invitation data provided.",
+            errors: error.flatten().fieldErrors,
+          });
+        }
+        // Log other errors and return a generic 500
+        console.error("Error adding workspace member by email:", error);
+        res.status(500).json({
+          message: "An internal error occurred while adding the member.",
+        });
       }
     }
   );
@@ -822,25 +890,227 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const workspaceId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
+        if (isNaN(workspaceId)) {
+          return res
+            .status(400)
+            .json({ message: "Invalid workspace ID format." });
+        }
+        const requesterUser = req.user as { id?: number };
+        if (!requesterUser || typeof requesterUser.id !== "number") {
+          return res.status(401).json({ message: "Authentication required." });
+        }
+        const userId = requesterUser.id;
 
-        // Check if the user is a member of the workspace
+        // Check if the user is a member of the workspace first
         const isUserInWorkspace = await storage.isUserInWorkspace(
           userId,
           workspaceId
         );
         if (!isUserInWorkspace) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this workspace" });
+          return res.status(403).json({
+            message:
+              "Permission denied: You do not have access to this workspace's members.",
+          });
         }
 
+        // Fetch members including their user details
         const members = await storage.getWorkspaceMembersByWorkspaceId(
           workspaceId
         );
         res.json(members);
       } catch (error) {
-        res.status(500).json({ message: "Failed to fetch workspace members" });
+        console.error("Error fetching workspace members:", error);
+        res.status(500).json({ message: "Failed to fetch workspace members." });
+      }
+    }
+  );
+
+  // Get the current user's membership details for a specific workspace
+  app.get(
+    "/api/workspaces/:workspaceId/members/me",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workspaceId = parseInt(req.params.workspaceId);
+        const userId = (req.user as any).id;
+
+        const membership = await storage.getWorkspaceMember(
+          userId,
+          workspaceId
+        );
+
+        if (!membership) {
+          // This shouldn't happen if the user can access the workspace,
+          // but handle it just in case.
+          return res
+            .status(404)
+            .json({ message: "Membership not found for this workspace" });
+        }
+
+        res.json(membership); // Contains userId, workspaceId, role
+      } catch (error) {
+        console.error("Error fetching own workspace membership:", error);
+        res.status(500).json({ message: "Failed to fetch membership details" });
+      }
+    }
+  );
+
+  // Add PUT endpoint for updating member role
+  app.put(
+    "/api/workspaces/:workspaceId/members/:memberUserId",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workspaceId = parseInt(req.params.workspaceId);
+        const memberUserId = parseInt(req.params.memberUserId);
+        const requesterId = (req.user as any).id;
+        const { role } = req.body;
+
+        if (!role || !["owner", "admin", "member"].includes(role)) {
+          return res.status(400).json({ message: "Invalid role specified" });
+        }
+
+        // Permission Check: Requester must be OWNER or ADMIN
+        const requesterMembership = await storage.getWorkspaceMember(
+          requesterId,
+          workspaceId
+        );
+        if (
+          !requesterMembership ||
+          !["owner", "admin"].includes(requesterMembership.role)
+        ) {
+          return res.status(403).json({
+            message:
+              "You do not have permission to change roles in this workspace",
+          });
+        }
+
+        // Special check: Cannot demote the last owner
+        if (role !== "owner") {
+          const currentMember = await storage.getWorkspaceMember(
+            memberUserId,
+            workspaceId
+          );
+          if (currentMember?.role === "owner") {
+            const owners = await storage.getWorkspaceOwners(workspaceId);
+            if (owners.length <= 1) {
+              return res
+                .status(400)
+                .json({ message: "Cannot remove the last owner" });
+            }
+          }
+        }
+
+        // Prevent self-demotion from owner if last owner
+        if (
+          requesterId === memberUserId &&
+          requesterMembership.role === "owner" &&
+          role !== "owner"
+        ) {
+          const owners = await storage.getWorkspaceOwners(workspaceId);
+          if (owners.length <= 1) {
+            return res.status(400).json({
+              message: "You cannot demote yourself as the last owner",
+            });
+          }
+        }
+
+        const updatedMember = await storage.updateWorkspaceMemberRole(
+          memberUserId,
+          workspaceId,
+          role
+        );
+        if (!updatedMember) {
+          return res
+            .status(404)
+            .json({ message: "Workspace member not found" });
+        }
+
+        res.json(updatedMember);
+      } catch (error) {
+        console.error("Error updating workspace member role:", error);
+        res.status(500).json({ message: "Failed to update member role" });
+      }
+    }
+  );
+
+  // Add DELETE endpoint for removing member
+  app.delete(
+    "/api/workspaces/:workspaceId/members/:memberUserId",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workspaceId = parseInt(req.params.workspaceId);
+        const memberUserId = parseInt(req.params.memberUserId);
+        const requesterId = (req.user as any).id;
+
+        // Cannot remove self directly with this endpoint
+        if (requesterId === memberUserId) {
+          return res.status(400).json({
+            message:
+              "Cannot remove yourself using this method. Use 'Leave Workspace'.",
+          });
+        }
+
+        // Permission Check: Requester must be OWNER or ADMIN
+        const requesterMembership = await storage.getWorkspaceMember(
+          requesterId,
+          workspaceId
+        );
+        if (
+          !requesterMembership ||
+          !["owner", "admin"].includes(requesterMembership.role)
+        ) {
+          return res.status(403).json({
+            message:
+              "You do not have permission to remove members from this workspace",
+          });
+        }
+
+        // Check role of member being removed - cannot remove owner unless you are also owner? (Policy decision)
+        const memberToRemove = await storage.getWorkspaceMember(
+          memberUserId,
+          workspaceId
+        );
+        if (!memberToRemove) {
+          return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Policy: Prevent non-owners from removing owners
+        if (
+          memberToRemove.role === "owner" &&
+          requesterMembership.role !== "owner"
+        ) {
+          return res
+            .status(403)
+            .json({ message: "Admins cannot remove owners" });
+        }
+
+        // Policy: Prevent removing the last owner
+        if (memberToRemove.role === "owner") {
+          const owners = await storage.getWorkspaceOwners(workspaceId);
+          if (owners.length <= 1) {
+            return res
+              .status(400)
+              .json({ message: "Cannot remove the last owner" });
+          }
+        }
+
+        const success = await storage.removeWorkspaceMember(
+          memberUserId,
+          workspaceId
+        );
+        if (!success) {
+          // This might happen if the member didn't exist, though we checked above
+          return res
+            .status(404)
+            .json({ message: "Failed to remove member or member not found" });
+        }
+
+        res.status(204).send(); // No content on successful deletion
+      } catch (error) {
+        console.error("Error removing workspace member:", error);
+        res.status(500).json({ message: "Failed to remove member" });
       }
     }
   );
