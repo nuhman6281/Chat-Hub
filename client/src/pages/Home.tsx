@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   Menu,
-  Send,
   Plus,
   Hash,
   LogOut,
@@ -64,12 +63,17 @@ import {
   users as usersTable,
   type Message,
   type Channel,
+  type DirectMessageWithUser,
 } from "@shared/schema";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+// Import chat components
+import MessageList from "@/components/chat/MessageList";
+import MessageInput from "@/components/chat/MessageInput";
 
 // Infer TypeScript types from table objects
 type Workspace = typeof workspacesTable.$inferSelect;
 type User = typeof usersTable.$inferSelect;
+type DirectMessage = DirectMessageWithUser;
 
 // Create workspace/channel form schemas
 const createWorkspaceSchema = z.object({
@@ -109,8 +113,9 @@ export default function HomePage() {
   const callContext = useCall();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const params = useParams();
+  const location = useLocation();
 
-  const [messageInput, setMessageInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<"channels" | "direct">("channels");
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
@@ -118,6 +123,83 @@ export default function HomePage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedWorkspaceForSettings, setSelectedWorkspaceForSettings] =
     useState<Workspace | null>(null);
+
+  // Handle routing - set active components based on URL parameters
+  useEffect(() => {
+    // Process route parameters to restore state on page load
+    const loadFromUrlParams = async () => {
+      try {
+        // If we have a workspace ID in the URL
+        if (params.workspaceId && workspaces.length > 0) {
+          const workspaceId = parseInt(params.workspaceId);
+          const workspace = workspaces.find((w) => w.id === workspaceId);
+
+          if (
+            workspace &&
+            (!activeWorkspace || activeWorkspace.id !== workspaceId)
+          ) {
+            setActiveWorkspace(workspace);
+
+            // If we have a channel ID
+            if (params.channelId && channels.length > 0) {
+              const channelId = parseInt(params.channelId);
+              const channel = channels.find((c) => c.id === channelId);
+
+              if (channel) {
+                setActiveChannel(channel);
+                setActiveDM(null); // Ensure DM is not active
+                setActiveTab("channels");
+              }
+            }
+            // If we have a direct message user ID
+            else if (params.userId && directMessages.length > 0) {
+              const userId = parseInt(params.userId);
+              const dm = directMessages.find((d) => d.otherUser.id === userId);
+
+              if (dm) {
+                setActiveDM(dm);
+                setActiveChannel(null); // Ensure channel is not active
+                setActiveTab("direct");
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error processing URL parameters:", error);
+      }
+    };
+
+    loadFromUrlParams();
+  }, [
+    params,
+    workspaces,
+    channels,
+    directMessages,
+    activeWorkspace,
+    activeChannel,
+    activeDM,
+  ]);
+
+  // Update URL when active components change
+  useEffect(() => {
+    // Don't update URL during initial load
+    if (!workspaces.length) return;
+
+    if (activeWorkspace && activeChannel) {
+      navigate(`/workspace/${activeWorkspace.id}/channel/${activeChannel.id}`, {
+        replace: true,
+      });
+    } else if (activeWorkspace && activeDM) {
+      navigate(
+        `/workspace/${activeWorkspace.id}/direct/${activeDM.otherUser.id}`,
+        {
+          replace: true,
+        }
+      );
+    } else if (activeWorkspace) {
+      navigate(`/workspace/${activeWorkspace.id}`, { replace: true });
+    }
+  }, [activeWorkspace, activeChannel, activeDM, workspaces.length]);
 
   // Form for creating a workspace
   const workspaceForm = useForm<CreateWorkspaceValues>({
@@ -137,18 +219,6 @@ export default function HomePage() {
       isPrivate: false,
     },
   });
-
-  // Handle sending a message
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!messageInput.trim()) return;
-
-    const success = await sendMessage(messageInput);
-    if (success) {
-      setMessageInput("");
-    }
-  };
 
   // Handle creating a workspace
   const onCreateWorkspace = async (values: CreateWorkspaceValues) => {
@@ -204,7 +274,7 @@ export default function HomePage() {
   };
 
   // Format message timestamp
-  const formatMessageTime = (timestamp: string | Date) => {
+  const formatMessageTime = (timestamp: string | Date): string => {
     const date =
       typeof timestamp === "string" ? new Date(timestamp) : timestamp;
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -562,7 +632,19 @@ export default function HomePage() {
                               activeDM?.id === dm.id ? "secondary" : "ghost"
                             }
                             className="w-full justify-start h-8 px-2"
-                            onClick={() => setActiveDM(dm)}
+                            onClick={() => {
+                              setActiveDM(dm);
+                              setActiveChannel(null);
+                              setActiveTab("direct");
+                              if (activeWorkspace) {
+                                navigate(
+                                  `/workspace/${activeWorkspace.id}/direct/${dm.otherUser.id}`,
+                                  {
+                                    replace: true,
+                                  }
+                                );
+                              }
+                            }}
                           >
                             <Avatar className="h-5 w-5 mr-2">
                               <AvatarImage src={otherUser?.avatarUrl || ""} />
@@ -774,61 +856,15 @@ export default function HomePage() {
                     )}
                   </div>
                 ) : (
-                  <ScrollArea className="flex-1 p-4 flex flex-col-reverse">
-                    <div className="space-y-4">
-                      {messages.map((message: any) => {
-                        const messageUser = message.user as User | undefined;
-                        if (!messageUser) return null;
-                        return (
-                          <div key={message.id} className="flex gap-3 group">
-                            <Avatar className="h-8 w-8 mt-1">
-                              <AvatarImage src={messageUser.avatarUrl || ""} />
-                              <AvatarFallback>
-                                {getInitials(messageUser.displayName)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm">
-                                  {messageUser.displayName}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatMessageTime(message.createdAt)}
-                                </span>
-                              </div>
-                              <p className="text-sm mt-1">{message.content}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
+                  <>
+                    {/* Use the MessageList component instead of implementing it directly */}
+                    <MessageList />
 
-                {/* Message Input */}
-                {(activeChannel || activeDM) && (
-                  <div className="p-4 border-t">
-                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                      <Input
-                        value={messageInput}
-                        onChange={(e) => setMessageInput(e.target.value)}
-                        placeholder={`Message ${
-                          activeChannel
-                            ? `#${activeChannel.name}`
-                            : (activeDM as any)?.otherUser?.displayName ||
-                              "User"
-                        }`}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="submit"
-                        size="icon"
-                        disabled={!messageInput.trim()}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </form>
-                  </div>
+                    {/* Use the MessageInput component instead of implementing a basic form */}
+                    <div className="border-t">
+                      <MessageInput />
+                    </div>
+                  </>
                 )}
               </>
             )}

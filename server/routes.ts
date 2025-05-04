@@ -19,6 +19,7 @@ import {
   type MessageWithUser,
 } from "@shared/schema";
 import { setupAuth, ensureAuthenticated, verifyToken } from "./auth";
+import nodemailer from "nodemailer";
 
 // WebSocket client map
 interface ConnectedClient {
@@ -1142,6 +1143,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(users);
       } catch (error) {
         res.status(500).json({ message: "Failed to fetch users" });
+      }
+    }
+  );
+
+  // Workspace invitations
+  app.post(
+    "/api/workspaces/:id/invite",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workspaceId = parseInt(req.params.id);
+        const userId = (req.user as any).id;
+        const { email } = req.body;
+
+        // Check if user has permission
+        const isUserInWorkspace = await storage.isUserInWorkspace(
+          userId,
+          workspaceId
+        );
+        if (!isUserInWorkspace) {
+          return res.status(403).json({ message: "Not authorized" });
+        }
+
+        // Get workspace details
+        const workspace = await storage.getWorkspace(workspaceId);
+        if (!workspace) {
+          return res.status(404).json({ message: "Workspace not found" });
+        }
+
+        // Generate unique invitation token
+        const inviteToken = require("shortid").generate();
+
+        // Store invitation in database
+        await storage.createWorkspaceInvitation({
+          workspaceId,
+          invitedByUserId: userId,
+          email,
+          token: inviteToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        });
+
+        const inviteLink = `${
+          process.env.APP_URL || "http://localhost:5000"
+        }/join/${inviteToken}`;
+
+        // Send email to invited user
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || "587"),
+          secure: process.env.SMTP_SECURE === "true",
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        const mailOptions = {
+          from: process.env.SMTP_FROM || "noreply@chathub.com",
+          to: email,
+          subject: `Invitation to join ${workspace.name}`,
+          html: `
+            <h2>You've been invited to join ${workspace.name}</h2>
+            <p>Click the link below to accept the invitation:</p>
+            <a href="${inviteLink}" style="display: inline-block; padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Join Workspace</a>
+            <p>This invitation will expire in 7 days.</p>
+            <p>If you didn't request this invitation, you can safely ignore this email.</p>
+          `,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({
+          message: "Invitation sent successfully",
+          inviteLink,
+        });
+      } catch (error) {
+        console.error("Error creating invitation:", error);
+        res.status(500).json({ message: "Failed to create invitation" });
       }
     }
   );

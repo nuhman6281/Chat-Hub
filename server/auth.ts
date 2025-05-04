@@ -9,8 +9,10 @@ import jwt from "jsonwebtoken";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
-const JWT_SECRET = process.env.JWT_SECRET || "chat-app-super-secret-key-for-development";
-const SESSION_SECRET = process.env.SESSION_SECRET || "chat-app-session-secret-key";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "chat-app-super-secret-key-for-development";
+const SESSION_SECRET =
+  process.env.SESSION_SECRET || "chat-app-session-secret-key";
 
 // Define the User type for Express
 declare global {
@@ -19,6 +21,7 @@ declare global {
     interface User {
       id: number;
       username: string;
+      email: string;
       password: string;
       displayName: string;
       status: string;
@@ -29,7 +32,10 @@ declare global {
 
 const PostgresSessionStore = connectPg(session);
 
-export async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+export async function comparePasswords(
+  supplied: string,
+  stored: string
+): Promise<boolean> {
   return await bcrypt.compare(supplied, stored);
 }
 
@@ -37,19 +43,21 @@ export function generateToken(user: User): string {
   // Ensure avatarUrl is either a string or null, not undefined
   const sanitizedUser = {
     ...user,
-    avatarUrl: user.avatarUrl || null
+    avatarUrl: user.avatarUrl || null,
   };
-  
+
   return jwt.sign(
     { id: sanitizedUser.id, username: sanitizedUser.username },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" }
   );
 }
 
-export function verifyToken(token: string): { id: number, username: string } | null {
+export function verifyToken(
+  token: string
+): { id: number; username: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: number, username: string };
+    return jwt.verify(token, JWT_SECRET) as { id: number; username: string };
   } catch (error) {
     return null;
   }
@@ -68,13 +76,13 @@ export function setupAuth(app: Express) {
     },
     store: new PostgresSessionStore({
       pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: true
-    })
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+    }),
   };
 
   app.use(session(sessionOptions));
-  
+
   // Initialize passport middleware
   app.use(passport.initialize());
   app.use(passport.session());
@@ -115,22 +123,33 @@ export function setupAuth(app: Express) {
   // Registration endpoint
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      const { username, password, displayName } = req.body;
-      
+      const { username, password, displayName, email } = req.body;
+      console.log("Registration attempt:", { username, email, displayName });
+
       // Validate input
-      if (!username || !password || !displayName) {
+      if (!username || !password || !displayName || !email) {
         return res.status(400).json({
           success: false,
-          message: "Username, password, and display name are required"
+          message: "Username, password, display name, and email are required",
         });
       }
 
-      // Check if user already exists
+      // Check if user already exists by username or email
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
+        console.log("Username already exists:", username);
         return res.status(400).json({
           success: false,
-          message: "Username already exists"
+          message: "Username already exists",
+        });
+      }
+
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        console.log("Email already exists:", email);
+        return res.status(400).json({
+          success: false,
+          message: "Email already exists",
         });
       }
 
@@ -138,26 +157,30 @@ export function setupAuth(app: Express) {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create the user
+      console.log("Creating user with:", { username, email, displayName });
       const user = await storage.createUser({
         username,
+        email,
         password: hashedPassword,
         displayName,
         status: "online",
-        avatarUrl: null // Explicitly set to null
+        avatarUrl: null, // Explicitly set to null
       });
+      console.log("User created successfully:", user);
 
       // Ensure avatarUrl is properly set to null if undefined
       const sanitizedUser = {
         ...user,
-        avatarUrl: user.avatarUrl || null
+        avatarUrl: user.avatarUrl || null,
       };
 
       // Log the user in
       req.login(sanitizedUser, (err) => {
         if (err) {
+          console.error("Login error after registration:", err);
           return res.status(500).json({
             success: false,
-            message: "Error logging in after registration"
+            message: "Error logging in after registration",
           });
         }
 
@@ -170,66 +193,73 @@ export function setupAuth(app: Express) {
           user: {
             id: user.id,
             username: user.username,
+            email: user.email,
             displayName: user.displayName,
             status: user.status,
-            avatarUrl: user.avatarUrl
+            avatarUrl: user.avatarUrl,
           },
-          token
+          token,
         });
       });
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).json({
         success: false,
-        message: "Error registering user"
+        message: "Error registering user",
       });
     }
   });
 
   // Login endpoint
-  app.post("/api/auth/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err: any, user: Express.User, info: { message?: string }) => {
-      if (err) {
-        return next(err);
-      }
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: info?.message || "Invalid credentials"
-        });
-      }
+  app.post(
+    "/api/auth/login",
+    (req: Request, res: Response, next: NextFunction) => {
+      passport.authenticate(
+        "local",
+        (err: any, user: Express.User, info: { message?: string }) => {
+          if (err) {
+            return next(err);
+          }
+          if (!user) {
+            return res.status(401).json({
+              success: false,
+              message: info?.message || "Invalid credentials",
+            });
+          }
 
-      // Ensure avatarUrl is properly set to either string or null
-      const sanitizedUser = {
-        ...user,
-        avatarUrl: user.avatarUrl || null
-      };
-      
-      req.login(sanitizedUser, (err) => {
-        if (err) {
-          return next(err);
+          // Ensure avatarUrl is properly set to either string or null
+          const sanitizedUser = {
+            ...user,
+            avatarUrl: user.avatarUrl || null,
+          };
+
+          req.login(sanitizedUser, (err) => {
+            if (err) {
+              return next(err);
+            }
+
+            // Generate a JWT token
+            const token = generateToken(sanitizedUser);
+
+            // Update user status to online
+            storage.updateUserStatus(user.id, "online");
+
+            return res.json({
+              success: true,
+              user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                status: user.status,
+                avatarUrl: user.avatarUrl,
+              },
+              token,
+            });
+          });
         }
-
-        // Generate a JWT token
-        const token = generateToken(sanitizedUser);
-
-        // Update user status to online
-        storage.updateUserStatus(user.id, "online");
-
-        return res.json({
-          success: true,
-          user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            status: user.status,
-            avatarUrl: user.avatarUrl
-          },
-          token
-        });
-      });
-    })(req, res, next);
-  });
+      )(req, res, next);
+    }
+  );
 
   // Logout endpoint
   app.post("/api/auth/logout", async (req: Request, res: Response) => {
@@ -242,12 +272,12 @@ export function setupAuth(app: Express) {
       if (err) {
         return res.status(500).json({
           success: false,
-          message: "Error logging out"
+          message: "Error logging out",
         });
       }
       res.json({
         success: true,
-        message: "Logged out successfully"
+        message: "Logged out successfully",
       });
     });
   });
@@ -264,7 +294,7 @@ export function setupAuth(app: Express) {
       username: req.user.username,
       displayName: req.user.displayName,
       status: req.user.status,
-      avatarUrl: req.user.avatarUrl
+      avatarUrl: req.user.avatarUrl,
     });
   });
 
@@ -273,7 +303,8 @@ export function setupAuth(app: Express) {
     // Skip auth for the auth routes and demo routes in development
     if (
       req.path.startsWith("/api/auth/") ||
-      (process.env.NODE_ENV === "development" && req.path.startsWith("/api/demo/"))
+      (process.env.NODE_ENV === "development" &&
+        req.path.startsWith("/api/demo/"))
     ) {
       return next();
     }
@@ -288,18 +319,19 @@ export function setupAuth(app: Express) {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
       const decoded = verifyToken(token);
-      
+
       if (decoded) {
         // Get the user from the database
-        storage.getUser(decoded.id)
-          .then(user => {
+        storage
+          .getUser(decoded.id)
+          .then((user) => {
             if (user) {
               req.user = user;
               return next();
             }
             res.status(401).json({ message: "Invalid token" });
           })
-          .catch(err => {
+          .catch((err) => {
             console.error("Token validation error:", err);
             res.status(500).json({ message: "Server error" });
           });
@@ -313,10 +345,35 @@ export function setupAuth(app: Express) {
 }
 
 // Helper middleware for routes that require authentication
-export function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
+export function ensureAuthenticated(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  // Check session authentication
   if (req.isAuthenticated()) {
     return next();
   }
-  
+
+  // Check JWT authentication
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (decoded) {
+      // Attach user info to request
+      req.user = {
+        id: decoded.id,
+        username: decoded.username,
+        email: decoded.username, // Use username as email for JWT auth
+        password: "", // Not needed for JWT auth
+        displayName: "", // Will be fetched if needed
+        status: "offline",
+        avatarUrl: null,
+      };
+      return next();
+    }
+  }
+
   res.status(401).json({ message: "Not authenticated" });
 }

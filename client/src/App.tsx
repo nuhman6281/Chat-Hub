@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  BrowserRouter as Router,
+  HashRouter as Router,
   Routes,
   Route,
   Navigate,
@@ -49,6 +49,33 @@ function App() {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/invite/:token" element={<InvitePage />} />
+              <Route path="/demo" element={<TestDemo />} />
+
+              {/* Chat routes with persistent URLs */}
+              <Route
+                path="/workspace/:workspaceId/channel/:channelId"
+                element={
+                  <ProtectedRoute>
+                    <HomePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/workspace/:workspaceId/direct/:userId"
+                element={
+                  <ProtectedRoute>
+                    <HomePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/workspace/:workspaceId"
+                element={
+                  <ProtectedRoute>
+                    <HomePage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/"
                 element={

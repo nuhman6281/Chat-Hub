@@ -15,6 +15,7 @@ import { relations } from "drizzle-orm";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
   displayName: text("display_name").notNull(),
   status: text("status").default("offline").notNull(),
@@ -23,6 +24,7 @@ export const users = pgTable("users", {
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
+  email: true,
   password: true,
   displayName: true,
   avatarUrl: true,
@@ -69,6 +71,24 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
   members: many(workspaceMembers),
 }));
 
+// Workspace invitations
+export const workspaceInvitations = pgTable("workspace_invitations", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull(),
+  invitedByUserId: integer("invited_by_user_id").notNull(),
+  email: text("email").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWorkspaceInvitationSchema =
+  createInsertSchema(workspaceInvitations);
+export type InsertWorkspaceInvitation = z.infer<
+  typeof insertWorkspaceInvitationSchema
+>;
+export type WorkspaceInvitation = typeof workspaceInvitations.$inferSelect;
+
 // Channel model
 export const channels = pgTable("channels", {
   id: serial("id").primaryKey(),
@@ -107,6 +127,7 @@ export const messages = pgTable("messages", {
   channelId: integer("channel_id"),
   directMessageId: integer("direct_message_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const insertMessageSchema = createInsertSchema(messages).pick({
@@ -247,3 +268,17 @@ export type DirectMessageWithUser = DirectMessage & {
   otherUser: User;
   lastMessage?: MessageWithUser;
 };
+
+export interface Reaction {
+  id: number;
+  messageId: number;
+  emoji: string;
+  name: string;
+  userId: number;
+  createdAt: Date;
+}
+
+export interface MessageWithReactions extends Message {
+  reactions: Reaction[];
+  user?: User;
+}

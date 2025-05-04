@@ -11,7 +11,7 @@ import { Suspense, StrictMode } from "react";
 // Add WebSocket connection patch for Vite
 const patchViteWebSocket = () => {
   const originalWebSocket = window.WebSocket;
-  // @ts-ignore - Need to override WebSocket constructor
+  // @ts-expect-error - Need to override WebSocket constructor temporarily
   window.WebSocket = function (url: string, protocols?: string | string[]) {
     if (url && typeof url === "string") {
       // Handle Vite HMR WebSocket

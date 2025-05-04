@@ -32,6 +32,7 @@ interface LoginCredentials {
 // Registration credentials interface
 interface RegistrationCredentials {
   username: string;
+  email: string;
   password: string;
   displayName: string;
 }

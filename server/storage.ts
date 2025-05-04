@@ -23,6 +23,9 @@ import {
   type MessageWithUser,
   type ChannelWithMemberCount,
   type DirectMessageWithUser,
+  workspaceInvitations,
+  type WorkspaceInvitation,
+  type InsertWorkspaceInvitation,
 } from "@shared/schema";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq, and, or, desc, count, sql, ilike } from "drizzle-orm";
@@ -89,6 +92,11 @@ export interface IStorage {
     channelId: number
   ): Promise<(ChannelMember & { user: User })[]>;
   isUserInChannel(userId: number, channelId: number): Promise<boolean>;
+
+  // Workspace invitation operations
+  createWorkspaceInvitation(
+    data: InsertWorkspaceInvitation
+  ): Promise<WorkspaceInvitation>;
 }
 
 export class MemStorage implements IStorage {
@@ -532,6 +540,14 @@ export class MemStorage implements IStorage {
         user.displayName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     });
+  }
+
+  // Workspace invitation operations
+  async createWorkspaceInvitation(
+    data: InsertWorkspaceInvitation
+  ): Promise<WorkspaceInvitation> {
+    // Implementation needed
+    throw new Error("Method not implemented");
   }
 }
 
@@ -1025,6 +1041,16 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .limit(20);
+  }
+
+  async createWorkspaceInvitation(
+    data: InsertWorkspaceInvitation
+  ): Promise<WorkspaceInvitation> {
+    const [invitation] = await this.db
+      .insert(workspaceInvitations)
+      .values(data)
+      .returning();
+    return invitation;
   }
 }
 
