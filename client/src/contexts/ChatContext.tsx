@@ -28,11 +28,9 @@ type User = {
 };
 
 // Extend the MessageWithUser type to include optimistic properties
-interface ExtendedMessage extends Omit<MessageWithUser, "id" | "user"> {
+interface ExtendedMessage extends MessageWithUser {
   _isOptimistic?: boolean;
   updatedAt: Date;
-  id: number; // Keep id as number to match Message type
-  user: User; // Use the User type from AuthContext
 }
 
 // Extend the DirectMessage type to include user information
@@ -93,6 +91,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [activeChat, setActiveChat] = useState<Channel | DirectMessage | null>(
+    null
+  );
 
   // Fetch workspaces when user changes
   useEffect(() => {
@@ -768,11 +769,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
   const hasNewMessages = !!messages.find((m) => m._isOptimistic);
 
-  // Update activeChat when activeChannel or activeDM changes
-  useEffect(() => {
-    setActiveChat(currentChannel || currentDirectMessage);
-  }, [currentChannel, currentDirectMessage]);
-
   const createDirectMessage = async (userId: number) => {
     if (!user) {
       console.error("Cannot create direct message: User not authenticated");
@@ -832,12 +828,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         channels,
         activeDM: currentDirectMessage,
         directMessages,
-        messages,
+        messages: messages as MessageWithUser[],
         isLoadingMessages,
         isConnected,
         setActiveWorkspace,
         setActiveChannel,
-        setActiveDM,
+        setActiveDM: setActiveDM as (dm: DirectMessage | null) => void,
         sendMessage,
         loadMoreMessages,
         createWorkspace,
