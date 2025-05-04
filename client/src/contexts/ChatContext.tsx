@@ -773,6 +773,56 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     setActiveChat(currentChannel || currentDirectMessage);
   }, [currentChannel, currentDirectMessage]);
 
+  const createDirectMessage = async (userId: number) => {
+    if (!user) {
+      console.error("Cannot create direct message: User not authenticated");
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to create a direct message.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/direct-messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user2Id: userId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to create direct message: ${response.statusText}`
+        );
+      }
+
+      const newDM = await response.json();
+
+      // Update direct messages list
+      setDirectMessages((prev) => [...prev, newDM]);
+
+      // Set as active DM
+      setCurrentDirectMessage(newDM);
+
+      toast({
+        title: "Direct Message Created",
+        description: "You can now start chatting.",
+      });
+    } catch (error) {
+      console.error("Error creating direct message:", error);
+      toast({
+        title: "Failed to Create Direct Message",
+        description: "An error occurred while creating the direct message.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <ChatContext.Provider
       value={{
