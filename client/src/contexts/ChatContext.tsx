@@ -44,31 +44,21 @@ interface ExtendedDirectMessage extends DirectMessage {
 // Define types for our chat messages and state
 interface ChatContextType {
   activeWorkspace: Workspace | null;
-  workspaces: Workspace[];
   activeChannel: Channel | null;
+  activeDM: DirectMessage | null;
+  activeChat: Channel | DirectMessage | null;
+  messages: MessageWithUser[];
+  workspaces: Workspace[];
   channels: Channel[];
-  activeDM: ExtendedDirectMessage | null;
-  directMessages: ExtendedDirectMessage[];
-  messages: ExtendedMessage[];
-  isLoadingMessages: boolean;
-  isConnected: boolean;
+  directMessages: DirectMessage[];
+  isLoading: boolean;
+  error: Error | null;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setActiveChannel: (channel: Channel | null) => void;
-  setActiveDM: (dm: ExtendedDirectMessage | null) => void;
-  sendMessage: (content: string) => Promise<boolean>;
-  loadMoreMessages: () => Promise<void>;
-  createWorkspace: (
-    name: string,
-    iconText: string
-  ) => Promise<Workspace | null>;
-  createChannel: (
-    name: string,
-    isPrivate: boolean,
-    description?: string
-  ) => Promise<Channel | null>;
-  refreshChannels: () => Promise<void>;
-  reconnectSocket: () => void;
-  hasNewMessages: boolean; // Added to track new message state
+  setActiveDM: (dm: DirectMessage | null) => void;
+  sendMessage: (content: string) => Promise<void>;
+  createChannel: (name: string, description?: string) => Promise<void>;
+  createDirectMessage: (userId: number) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -101,6 +91,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   // Fetch workspaces when user changes
   useEffect(() => {
@@ -453,7 +445,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "Please log in to send messages.",
         variant: "destructive",
       });
-      return false;
+      return;
     }
 
     if (!isConnected) {
@@ -470,7 +462,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       } catch (error) {
         console.error("Failed to reconnect:", error);
       }
-      return false;
+      return;
     }
 
     if (!isAuthenticated) {
@@ -496,7 +488,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       } catch (error) {
         console.error("Failed to re-authenticate:", error);
       }
-      return false;
+      return;
     }
 
     if (!currentChannel && !currentDirectMessage) {
@@ -506,7 +498,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "Please select a channel or direct message to send to.",
         variant: "destructive",
       });
-      return false;
+      return;
     }
 
     try {
@@ -582,10 +574,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
           description: "Could not send message. Please try again.",
           variant: "destructive",
         });
-        return false;
       }
-
-      return true;
     } catch (error) {
       console.error("Error sending message:", error);
       toast({
@@ -593,7 +582,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "An error occurred while sending your message.",
         variant: "destructive",
       });
-      return false;
     }
   };
 
@@ -658,11 +646,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const createChannel = async (
-    name: string,
-    isPrivate: boolean,
-    description?: string
-  ) => {
+  const createChannel = async (name: string, description?: string) => {
     if (!user) {
       console.error("Cannot create channel: User not authenticated");
       toast({
@@ -670,7 +654,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "Please log in to create a channel.",
         variant: "destructive",
       });
-      return null;
+      return;
     }
 
     if (!currentWorkspace) {
@@ -680,7 +664,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "Please select a workspace to create a channel in.",
         variant: "destructive",
       });
-      return null;
+      return;
     }
 
     try {
@@ -693,7 +677,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
           },
           body: JSON.stringify({
             name,
-            isPrivate,
+            isPrivate: false,
             description: description || "",
             creatorId: user.id,
           }),
@@ -716,8 +700,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         title: "Channel Created",
         description: `#${name} channel has been created successfully.`,
       });
-
-      return newChannel;
     } catch (error) {
       console.error("Error creating channel:", error);
       toast({
@@ -725,7 +707,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         description: "An error occurred while creating your channel.",
         variant: "destructive",
       });
-      return null;
     }
   };
 
@@ -787,6 +768,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
   const hasNewMessages = !!messages.find((m) => m._isOptimistic);
 
+  // Update activeChat when activeChannel or activeDM changes
+  useEffect(() => {
+    setActiveChat(currentChannel || currentDirectMessage);
+  }, [currentChannel, currentDirectMessage]);
+
   return (
     <ChatContext.Provider
       value={{
@@ -809,6 +795,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         refreshChannels,
         reconnectSocket,
         hasNewMessages,
+        isLoading,
+        error,
+        createDirectMessage,
       }}
     >
       {children}

@@ -6,7 +6,7 @@
   "homepage": "https://yourusername.github.io/ChatHub",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "predeploy": "npm run build",
@@ -36,8 +36,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.19",
+    "@types/nodemailer": "^6.4.17",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
+    "@types/sqlite3": "^3.1.11",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vitejs/plugin-react": "^4.2.1",

@@ -13,15 +13,7 @@ import {
   QueryKey,
 } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-
-// User interface that matches our server-side User type
-interface User {
-  id: number;
-  username: string;
-  displayName: string;
-  status: string;
-  avatarUrl?: string | null;
-}
+import { User } from "@shared/schema";
 
 // Login credentials interface
 interface LoginCredentials {
@@ -53,6 +45,13 @@ interface AuthContextType {
     Error,
     RegistrationCredentials
   >;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  register: (
+    username: string,
+    password: string,
+    displayName: string
+  ) => Promise<void>;
 }
 
 // Create the auth context
@@ -62,7 +61,9 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 const userQueryKey: QueryKey = ["/api/auth/user"];
 
 // Create the AuthProvider component
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { toast } = useToast();
   const [authToken, setAuthToken] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -70,14 +71,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return null;
   });
-  // State specifically for the user object provided by the context
-  const [providedUser, setProvidedUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginMutation, setLoginMutation] = useState({
+    isLoading: false,
+    error: null,
+  });
+  const [registerMutation, setRegisterMutation] = useState({
+    isLoading: false,
+    error: null,
+  });
 
   // Fetch current user - Enabled only when authToken exists
   const {
-    data: user,
+    data: userData,
     error,
-    isLoading,
+    isLoading: queryIsLoading,
   } = useQuery<User | null, Error>({
     queryKey: userQueryKey,
     queryFn: async () => {
@@ -122,14 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: true, // Refetch on window focus
   });
 
-  // Effect to sync useQuery result to the providedUser state
+  // Effect to sync useQuery result to the user state
   useEffect(() => {
-    console.log("AuthContext: User data from useQuery changed:", user);
-    setProvidedUser(user ?? null); // Update the state passed to context
-  }, [user]);
+    console.log("AuthContext: User data from useQuery changed:", userData);
+    setUser(userData ?? null); // Update the state passed to context
+  }, [userData]);
 
   // Login mutation
-  const loginMutation = useMutation({
+  const loginMutationHandler = useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -150,12 +159,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("authToken", data.token);
       // 2. Update token state (this enables the useQuery)
       setAuthToken(data.token);
-      // 3. Immediately update providedUser state with login data
+      // 3. Immediately update user state with login data
       console.log(
-        "AuthContext: Setting providedUser state from login data:",
+        "AuthContext: Setting user state from login data:",
         data.user
       );
-      setProvidedUser(data.user);
+      setUser(data.user);
       // 4. Invalidate the user query to ensure it refetches eventually (good practice)
       console.log("AuthContext: Invalidating user query after login");
       queryClient.invalidateQueries({ queryKey: userQueryKey });
@@ -175,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   // Register mutation
-  const registerMutation = useMutation({
+  const registerMutationHandler = useMutation({
     mutationFn: async (credentials: RegistrationCredentials) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -196,12 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("authToken", data.token);
       // 2. Update token state (this enables the useQuery)
       setAuthToken(data.token);
-      // 3. Immediately update providedUser state with registration data
+      // 3. Immediately update user state with registration data
       console.log(
-        "AuthContext: Setting providedUser state from register data:",
+        "AuthContext: Setting user state from register data:",
         data.user
       );
-      setProvidedUser(data.user);
+      setUser(data.user);
       // 4. Invalidate the user query to ensure it refetches eventually (good practice)
       console.log("AuthContext: Invalidating user query after registration");
       queryClient.invalidateQueries({ queryKey: userQueryKey });
@@ -221,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   // Logout mutation - Use setQueryData for immediate update
-  const logoutMutation = useMutation({
+  const logoutMutationHandler = useMutation({
     mutationFn: async () => {
       const currentToken = localStorage.getItem("authToken"); // Use current token for logout call
       if (!currentToken) return { message: "Already logged out" }; // Optional: No need to call server if no token
@@ -246,8 +255,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 2. Update token state -> This disables the useQuery
       setAuthToken(null);
       // 3. Immediately update the user state exposed by the provider
-      console.log("AuthContext: Setting providedUser state to null");
-      setProvidedUser(null);
+      console.log("AuthContext: Setting user state to null");
+      setUser(null);
       // 4. Force update of user data in cache to null (for consistency)
       console.log("AuthContext: Setting user query data to null");
       queryClient.setQueryData(userQueryKey, null);
@@ -280,23 +289,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Add logging for user state changes
   useEffect(() => {
-    console.log("AuthContext: User state from useQuery changed:", user);
-  }, [user]);
+    console.log("AuthContext: User state from useQuery changed:", userData);
+  }, [userData]);
 
   // Combine loading states from query and mutations
   const combinedIsLoading =
-    isLoading || // Initial user fetch
-    loginMutation.isPending ||
-    registerMutation.isPending ||
-    logoutMutation.isPending; // Explicitly include logout pending state
+    queryIsLoading || // Initial user fetch
+    loginMutationHandler.isPending ||
+    registerMutationHandler.isPending ||
+    logoutMutationHandler.isPending; // Explicitly include logout pending state
+
+  const login = async (username: string, password: string) => {
+    // Implementation
+  };
+
+  const logout = async () => {
+    // Implementation
+  };
+
+  const register = async (
+    username: string,
+    password: string,
+    displayName: string
+  ) => {
+    // Implementation
+  };
 
   const providerValue = {
-    user: providedUser, // Use the local state here
-    isLoading: combinedIsLoading, // Provide the combined loading state
+    user,
+    isLoading: combinedIsLoading,
     error,
-    loginMutation,
-    logoutMutation,
-    registerMutation,
+    loginMutation: loginMutationHandler,
+    logoutMutation: logoutMutationHandler,
+    registerMutation: registerMutationHandler,
+    login,
+    logout,
+    register,
   };
 
   // Log the value being provided
@@ -307,14 +335,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
 // Custom hook to use the auth context
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    // Check for undefined instead of null
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}
+};
