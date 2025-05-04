@@ -129,7 +129,8 @@ export class MemStorage implements IStorage {
     const seedUser: User = {
       id: this.userId++,
       username: "demo",
-      password: "password",
+      email: "demo@example.com",
+      password: "demo",
       displayName: "Demo User",
       status: "online",
       avatarUrl: null,
@@ -175,6 +176,18 @@ export class MemStorage implements IStorage {
       userId: seedUser.id,
     };
     this.channelMembers.set(channelMemberId, channelMember);
+
+    // Create a seed message for testing
+    const message: Message = {
+      id: this.messageId++,
+      content: "Hello, world!",
+      userId: seedUser.id,
+      channelId: generalChannel.id,
+      directMessageId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.messages.set(message.id, message);
   }
 
   // User operations
@@ -313,6 +326,7 @@ export class MemStorage implements IStorage {
       ...insertMessage,
       id,
       createdAt: now,
+      updatedAt: now,
       channelId: insertMessage.channelId || null,
       directMessageId: insertMessage.directMessageId || null,
     };
