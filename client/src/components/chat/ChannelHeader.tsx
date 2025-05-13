@@ -1,71 +1,37 @@
+import React from "react";
+import { useChat } from "@/contexts/ChatContext";
 import { Button } from "@/components/ui/button";
-import { useChat } from "@/hooks/useChat";
+import { VideoCallModal } from "@/components/modals/VideoCallModal";
+import { VoiceCallModal } from "@/components/modals/VoiceCallModal";
 import { ChevronDown, Video, Phone, UserPlus, Info } from "lucide-react";
 
-interface ChannelHeaderProps {
-  onVideoCall: () => void;
-  onVoiceCall: () => void;
-}
+export const ChannelHeader: React.FC = () => {
+  const { activeChannel, activeDM } = useChat();
 
-export default function ChannelHeader({ onVideoCall, onVoiceCall }: ChannelHeaderProps) {
-  const { activeChat, activeChannel } = useChat();
-  
-  if (!activeChat) return null;
-  
+  if (!activeChannel && !activeDM) return null;
+
+  const name = activeChannel?.name || activeDM?.otherUser.displayName;
+  const isDirectMessage = !!activeDM;
+
   return (
-    <div className="h-14 border-b border-gray-200 dark:border-dark-100 flex items-center px-4 bg-white dark:bg-dark-200">
-      <div className="flex-1">
-        <div className="flex items-center">
-          {activeChat.type === "channel" ? (
-            <>
-              <span className="text-gray-500 dark:text-gray-400 mr-2">#</span>
-              <h2 className="font-semibold">{activeChat.name}</h2>
-            </>
-          ) : (
-            <h2 className="font-semibold">{activeChat.name}</h2>
-          )}
-          <Button variant="ghost" size="icon" className="ml-1 h-6 w-6">
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          </Button>
-        </div>
-        
-        {activeChat.type === "channel" && activeChannel && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            <span>{activeChannel.memberCount} members</span>
-            {activeChannel.description && (
-              <>
-                <span className="mx-1">•</span>
-                <span>{activeChannel.description}</span>
-              </>
-            )}
+    <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
+            {name
+              ?.split(" ")
+              .map((n) => n[0])
+              .join("")
+              .substring(0, 2)
+              .toUpperCase()}
           </div>
-        )}
+          <h2 className="text-lg font-semibold">{name}</h2>
+        </div>
       </div>
-      
       <div className="flex items-center space-x-2">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={onVoiceCall}
-          className="text-gray-600 dark:text-gray-300"
-        >
-          <Phone className="h-5 w-5" />
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={onVideoCall}
-          className="text-gray-600 dark:text-gray-300"
-        >
-          <Video className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="text-gray-600 dark:text-gray-300">
-          <UserPlus className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="text-gray-600 dark:text-gray-300">
-          <Info className="h-5 w-5" />
-        </Button>
+        <VideoCallModal isOpen={false} onClose={() => {}} />
+        <VoiceCallModal isOpen={false} onClose={() => {}} />
       </div>
     </div>
   );
-}
+};

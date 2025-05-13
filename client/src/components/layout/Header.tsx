@@ -1,27 +1,28 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import UserAvatar from "@/components/UserAvatar";
-import { 
-  Search, 
-  Phone, 
-  Bell, 
-  Moon, 
-  Sun, 
+import { UserAvatar } from "@/components/UserAvatar";
+import {
+  Search,
+  Phone,
+  Bell,
+  Moon,
+  Sun,
   Menu,
-  LogOut, 
-  Settings, 
-  User 
+  LogOut,
+  Settings,
+  User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ClientUser } from "@shared/schema";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -31,98 +32,46 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [notificationCount] = useState(3); // Mock notification count
-  
+
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
-  
+
   return (
-    <header className="bg-white dark:bg-dark-200 border-b border-gray-200 dark:border-dark-100 shadow-sm">
-      <div className="flex items-center justify-between px-4 h-14">
-        <div className="flex items-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="md:hidden mr-2 text-gray-500 dark:text-gray-400"
-            onClick={onMobileMenuToggle}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 bg-gradient-to-r from-primary to-secondary rounded-lg flex items-center justify-center text-white font-bold">
-              CH
-            </div>
-            <h1 className="text-xl font-semibold">ChatHub</h1>
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              ChatHub
+            </h1>
           </div>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          {/* Search button */}
-          <Button variant="ghost" size="icon" className="text-gray-600 dark:text-gray-300">
-            <Search className="h-5 w-5" />
-          </Button>
-          
-          {/* Call history button */}
-          <Button variant="ghost" size="icon" className="text-gray-600 dark:text-gray-300">
-            <Phone className="h-5 w-5" />
-          </Button>
-          
-          {/* Notifications button */}
-          <Button variant="ghost" size="icon" className="text-gray-600 dark:text-gray-300 relative">
-            <Bell className="h-5 w-5" />
-            {notificationCount > 0 && (
-              <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center">
-                {notificationCount}
-              </Badge>
-            )}
-          </Button>
-          
-          {/* Dark mode toggle */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleTheme}
-            className="text-gray-600 dark:text-gray-300"
-          >
-            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
-          
-          {/* User profile */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <UserAvatar
-                  user={user}
-                  className="h-8 w-8 border-2 border-primary"
-                  showStatus
-                />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="flex items-center justify-start p-2">
-                <UserAvatar user={user} className="h-8 w-8 mr-2" />
-                <div className="flex flex-col">
-                  <p className="font-medium text-sm">{user?.displayName}</p>
-                  <p className="text-xs text-gray-500">@{user?.username}</p>
+
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <div className="flex items-center">
+                  <UserAvatar user={user} className="h-8 w-8 mr-2" />
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {user.displayName}
+                  </span>
                 </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => logout()}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <a
+                href="/login"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Login
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </header>

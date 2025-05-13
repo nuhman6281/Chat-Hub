@@ -17,6 +17,15 @@ import {
   insertWorkspaceMemberSchema,
   insertChannelMemberSchema,
   type MessageWithUser,
+  type User,
+  type Channel,
+  type ChannelMember,
+  type DirectMessage,
+  type Workspace,
+  type WorkspaceMember,
+  type ChannelWithMemberCount,
+  type DirectMessageWithUser,
+  type WorkspaceInvitation,
 } from "@shared/schema";
 import { setupAuth, ensureAuthenticated, verifyToken } from "./auth";
 import nodemailer from "nodemailer";
@@ -136,6 +145,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (data.channelId) {
             // Channel message
+            const channel = await storage.getChannel(data.channelId);
+            if (!channel || !channel.workspaceId) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  message: "Invalid channel or workspace",
+                })
+              );
+              return;
+            }
+
             const isUserInChannel = await storage.isUserInChannel(
               userId,
               data.channelId
@@ -278,7 +298,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage
       .getChannelMembersByChannelId(channelId)
       .then((members) => {
-        const memberIds = members.map((member) => member.userId);
+        const memberIds = members
+          .filter(
+            (member): member is ChannelMember & { user: User } =>
+              member.userId !== null && member.userId !== undefined
+          )
+          .map((member) => member.userId);
 
         // Track how many clients received the message
         let deliveryCount = 0;
@@ -317,7 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `Message broadcast to channel ${channelId}: ${deliveryCount}/${totalEligibleClients} clients received`
         );
       })
-      .catch((error) => {
+      .catch((error: Error) => {
         console.error(`Error broadcasting to channel ${channelId}:`, error);
       });
   }
@@ -326,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage
       .getDirectMessage(directMessageId)
       .then((dm) => {
-        if (dm) {
+        if (dm && dm.user1Id !== null && dm.user2Id !== null) {
           // Track how many clients received the message
           let deliveryCount = 0;
           const eligibleUserIds = [dm.user1Id, dm.user2Id];
@@ -366,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
         }
       })
-      .catch((error) => {
+      .catch((error: Error) => {
         console.error(`Error broadcasting to DM ${directMessageId}:`, error);
       });
   }
@@ -396,12 +421,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Create a demo user session
-    const demoUser = {
+    const demoUser: User = {
       id: 1,
       username: "demo",
       displayName: "Demo User",
       status: "online",
       password: "password", // This is safe because it's only used in development
+      email: "demo@example.com",
+      avatarUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     req.login(demoUser, (err) => {
@@ -471,19 +500,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const workspaceId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
-
-        // Check if user is a member of the workspace
-        const isMember = await storage.isUserInWorkspace(userId, workspaceId);
-        if (!isMember) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this workspace" });
+        if (!req.user?.id) {
+          return res.status(401).json({ message: "User not authenticated" });
         }
+        const userId = req.user.id;
 
         const workspace = await storage.getWorkspace(workspaceId);
         if (!workspace) {
           return res.status(404).json({ message: "Workspace not found" });
+        }
+
+        const isMember = await storage.isUserInWorkspace(userId, workspaceId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Not a workspace member" });
         }
 
         res.json(workspace);
@@ -539,19 +568,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const workspaceId = parseInt(req.params.workspaceId);
-        const userId = (req.user as any).id;
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({ message: "User not authenticated" });
+        }
+        const userId = req.user.id;
 
-        // Check if user is a member of the workspace
+        const workspace = await storage.getWorkspace(workspaceId);
+        if (!workspace) {
+          return res.status(404).json({ message: "Workspace not found" });
+        }
+
         const isMember = await storage.isUserInWorkspace(userId, workspaceId);
         if (!isMember) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this workspace" });
+          return res.status(403).json({ message: "Not a workspace member" });
         }
 
         const channels = await storage.getChannelsByWorkspaceId(workspaceId);
         res.json(channels);
       } catch (error) {
+        console.error("Error fetching workspace channels:", error);
         res.status(500).json({ message: "Failed to fetch channels" });
       }
     }
@@ -563,27 +598,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const channelId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({ message: "User not authenticated" });
+        }
+        const userId = req.user.id;
 
-        // Get the channel
         const channel = await storage.getChannel(channelId);
         if (!channel) {
           return res.status(404).json({ message: "Channel not found" });
         }
 
-        // Check if user is a member of the channel's workspace
+        if (!channel.workspaceId) {
+          return res
+            .status(400)
+            .json({ message: "Channel must belong to a workspace" });
+        }
+
         const isMember = await storage.isUserInWorkspace(
           userId,
           channel.workspaceId
         );
         if (!isMember) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this channel" });
+          return res.status(403).json({ message: "Not a workspace member" });
         }
 
         res.json(channel);
       } catch (error) {
+        console.error("Error fetching channel:", error);
         res.status(500).json({ message: "Failed to fetch channel" });
       }
     }
@@ -595,28 +636,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const channelId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({ message: "User not authenticated" });
+        }
+        const userId = req.user.id;
 
-        // Get the channel
         const channel = await storage.getChannel(channelId);
         if (!channel) {
           return res.status(404).json({ message: "Channel not found" });
         }
 
-        // Check if user is a member of the channel's workspace
+        if (!channel.workspaceId) {
+          return res
+            .status(400)
+            .json({ message: "Channel must belong to a workspace" });
+        }
+
         const isMember = await storage.isUserInWorkspace(
           userId,
           channel.workspaceId
         );
         if (!isMember) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this channel" });
+          return res.status(403).json({ message: "Not a workspace member" });
         }
 
         const messages = await storage.getMessagesByChannelId(channelId);
         res.json(messages);
       } catch (error) {
+        console.error("Error fetching messages:", error);
         res.status(500).json({ message: "Failed to fetch messages" });
       }
     }
@@ -718,7 +765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Get the channel
         const channel = await storage.getChannel(channelId);
-        if (!channel) {
+        if (!channel || !channel.workspaceId) {
           return res.status(404).json({ message: "Channel not found" });
         }
 
@@ -763,28 +810,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const channelId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({ message: "User not authenticated" });
+        }
+        const userId = req.user.id;
 
-        // Get the channel
         const channel = await storage.getChannel(channelId);
         if (!channel) {
           return res.status(404).json({ message: "Channel not found" });
         }
 
-        // Check if the user is a member of the workspace
-        const isUserInWorkspace = await storage.isUserInWorkspace(
-          userId,
-          channel.workspaceId
-        );
-        if (!isUserInWorkspace) {
-          return res
-            .status(403)
-            .json({ message: "You do not have access to this workspace" });
+        const isMember = await storage.isUserInChannel(userId, channelId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Not a channel member" });
         }
 
         const members = await storage.getChannelMembersByChannelId(channelId);
         res.json(members);
       } catch (error) {
+        console.error("Error fetching channel members:", error);
         res.status(500).json({ message: "Failed to fetch channel members" });
       }
     }
@@ -891,37 +935,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req: Request, res: Response) => {
       try {
         const workspaceId = parseInt(req.params.id);
-        if (isNaN(workspaceId)) {
-          return res
-            .status(400)
-            .json({ message: "Invalid workspace ID format." });
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({ message: "User not authenticated" });
         }
-        const requesterUser = req.user as { id?: number };
-        if (!requesterUser || typeof requesterUser.id !== "number") {
-          return res.status(401).json({ message: "Authentication required." });
-        }
-        const userId = requesterUser.id;
+        const userId = req.user.id;
 
-        // Check if the user is a member of the workspace first
-        const isUserInWorkspace = await storage.isUserInWorkspace(
-          userId,
-          workspaceId
-        );
-        if (!isUserInWorkspace) {
-          return res.status(403).json({
-            message:
-              "Permission denied: You do not have access to this workspace's members.",
-          });
+        const workspace = await storage.getWorkspace(workspaceId);
+        if (!workspace) {
+          return res.status(404).json({ message: "Workspace not found" });
         }
 
-        // Fetch members including their user details
+        const isMember = await storage.isUserInWorkspace(userId, workspaceId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Not a workspace member" });
+        }
+
         const members = await storage.getWorkspaceMembersByWorkspaceId(
           workspaceId
         );
         res.json(members);
       } catch (error) {
         console.error("Error fetching workspace members:", error);
-        res.status(500).json({ message: "Failed to fetch workspace members." });
+        res.status(500).json({ message: "Failed to fetch workspace members" });
       }
     }
   );
@@ -935,20 +970,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const workspaceId = parseInt(req.params.workspaceId);
         const userId = (req.user as any).id;
 
+        const workspace = await storage.getWorkspace(workspaceId);
+        if (!workspace) {
+          return res.status(404).json({ message: "Workspace not found" });
+        }
+
+        const isMember = await storage.isUserInWorkspace(userId, workspaceId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Not a workspace member" });
+        }
+
         const membership = await storage.getWorkspaceMember(
           userId,
           workspaceId
         );
-
         if (!membership) {
-          // This shouldn't happen if the user can access the workspace,
-          // but handle it just in case.
-          return res
-            .status(404)
-            .json({ message: "Membership not found for this workspace" });
+          return res.status(404).json({ message: "Membership not found" });
         }
 
-        res.json(membership); // Contains userId, workspaceId, role
+        res.json(membership);
       } catch (error) {
         console.error("Error fetching own workspace membership:", error);
         res.status(500).json({ message: "Failed to fetch membership details" });
@@ -1118,109 +1158,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Users
   app.get(
-    "/api/users",
+    "/api/users/search",
     ensureAuthenticated,
     async (req: Request, res: Response) => {
-      // This endpoint would typically be used to search for users
-      // In a real app, you'd implement pagination and search
       try {
-        const search = req.query.search as string;
-        if (!search || search.length < 3) {
-          return res
-            .status(400)
-            .json({ message: "Search query must be at least 3 characters" });
+        const searchTerm = req.query.q as string;
+        if (!searchTerm) {
+          return res.status(400).json({ message: "Search term is required" });
         }
 
-        // Search for users matching the search term
-        const users = await storage
-          .searchUsers(search)
-          .then((users) =>
-            users.map(
-              ({ password, ...userWithoutPassword }) => userWithoutPassword
-            )
+        // Use getUserByUsername or getUserByEmail based on the search term
+        const users = await Promise.all([
+          storage.getUserByUsername(searchTerm),
+          storage.getUserByEmail(searchTerm),
+        ]);
+
+        const uniqueUsers = users
+          .filter((user): user is User => user !== undefined)
+          .filter(
+            (user, index, self) =>
+              index === self.findIndex((u) => u.id === user.id)
           );
 
-        res.json(users);
+        res.json(
+          uniqueUsers.map(
+            ({ password, ...userWithoutPassword }) => userWithoutPassword
+          )
+        );
       } catch (error) {
-        res.status(500).json({ message: "Failed to fetch users" });
+        console.error("Error searching users:", error);
+        res.status(500).json({ message: "Failed to search users" });
       }
     }
   );
 
   // Workspace invitations
   app.post(
-    "/api/workspaces/:id/invite",
+    "/api/workspaces/:id/invitations",
     ensureAuthenticated,
     async (req: Request, res: Response) => {
       try {
         const workspaceId = parseInt(req.params.id);
-        const userId = (req.user as any).id;
-        const { email } = req.body;
+        if (!req.user?.id) {
+          return res.status(401).json({ message: "User not authenticated" });
+        }
+        const userId = req.user.id;
 
-        // Check if user has permission
-        const isUserInWorkspace = await storage.isUserInWorkspace(
-          userId,
-          workspaceId
-        );
-        if (!isUserInWorkspace) {
-          return res.status(403).json({ message: "Not authorized" });
+        const { email, role } = req.body;
+        if (!email || !role) {
+          return res
+            .status(400)
+            .json({ message: "Email and role are required" });
         }
 
-        // Get workspace details
         const workspace = await storage.getWorkspace(workspaceId);
         if (!workspace) {
           return res.status(404).json({ message: "Workspace not found" });
         }
 
-        // Generate unique invitation token
-        const inviteToken = require("shortid").generate();
+        const isMember = await storage.isUserInWorkspace(userId, workspaceId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Not a workspace member" });
+        }
 
-        // Store invitation in database
-        await storage.createWorkspaceInvitation({
+        const invitation = await storage.createWorkspaceInvitation({
           workspaceId,
-          invitedByUserId: userId,
-          email,
-          token: inviteToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          email: email,
+          role: role,
+          createdAt: new Date(),
         });
 
-        const inviteLink = `${
-          process.env.APP_URL || "http://localhost:5000"
-        }/join/${inviteToken}`;
-
-        // Send email to invited user
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          secure: process.env.SMTP_SECURE === "true",
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        });
-
-        const mailOptions = {
-          from: process.env.SMTP_FROM || "noreply@chathub.com",
-          to: email,
-          subject: `Invitation to join ${workspace.name}`,
-          html: `
-            <h2>You've been invited to join ${workspace.name}</h2>
-            <p>Click the link below to accept the invitation:</p>
-            <a href="${inviteLink}" style="display: inline-block; padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Join Workspace</a>
-            <p>This invitation will expire in 7 days.</p>
-            <p>If you didn't request this invitation, you can safely ignore this email.</p>
-          `,
-        };
-
-        await transporter.sendMail(mailOptions);
-
-        res.json({
-          message: "Invitation sent successfully",
-          inviteLink,
-        });
+        res.status(201).json(invitation);
       } catch (error) {
-        console.error("Error creating invitation:", error);
-        res.status(500).json({ message: "Failed to create invitation" });
+        console.error("Error creating workspace invitation:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to create workspace invitation" });
       }
     }
   );

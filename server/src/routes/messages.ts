@@ -1,61 +1,64 @@
 import { Router } from "express";
-import { storage } from "../storage";
-import { auth } from "../middleware/auth";
-import { Reaction } from "@shared/schema";
+import { storage } from "../../storage";
+import { ensureAuthenticated } from "../../auth";
 
 const router = Router();
 
 // ... existing routes ...
 
 // Get reactions for a message
-router.get("/:messageId/reactions", auth, async (req, res) => {
+router.get("/:messageId/reactions", ensureAuthenticated, async (req, res) => {
   try {
     const messageId = parseInt(req.params.messageId);
-    if (isNaN(messageId)) {
-      return res.status(400).json({ error: "Invalid message ID" });
+    if (!messageId) {
+      return res.status(400).json({ message: "Message ID is required" });
+    }
+
+    const message = await storage.getMessage(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
     }
 
     const reactions = await storage.getMessageReactions(messageId);
     res.json(reactions);
   } catch (error) {
-    console.error("Error fetching reactions:", error);
-    res.status(500).json({ error: "Failed to fetch reactions" });
+    console.error("Error getting message reactions:", error);
+    res.status(500).json({ message: "Failed to get message reactions" });
   }
 });
 
 // Toggle a reaction on a message
-router.post("/:messageId/reactions", auth, async (req, res) => {
+router.post("/:messageId/reactions", ensureAuthenticated, async (req, res) => {
   try {
     const messageId = parseInt(req.params.messageId);
-    if (isNaN(messageId)) {
-      return res.status(400).json({ error: "Invalid message ID" });
+    if (!messageId) {
+      return res.status(400).json({ message: "Message ID is required" });
     }
 
-    const { emoji, name, action } = req.body;
+    const { emoji, name } = req.body;
     if (!emoji || !name) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ message: "Emoji and name are required" });
     }
 
-    const userId = req.user.id;
-    const reactions = await storage.toggleReaction(
+    const message = await storage.getMessage(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const reaction = await storage.toggleReaction(
       messageId,
-      userId,
+      req.user.id,
       emoji,
       name
     );
-
-    // Emit the reaction update to all connected clients
-    req.app.get("io").emit("message_reaction", {
-      messageId,
-      message: { reactions },
-    });
-
-    res.setHeader("Content-Type", "application/json");
-    res.json({ reactions });
+    res.json(reaction);
   } catch (error) {
     console.error("Error toggling reaction:", error);
-    res.setHeader("Content-Type", "application/json");
-    res.status(500).json({ error: "Failed to toggle reaction" });
+    res.status(500).json({ message: "Failed to toggle reaction" });
   }
 });
 

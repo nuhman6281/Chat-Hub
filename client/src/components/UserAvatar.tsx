@@ -1,71 +1,71 @@
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
-
-interface User {
-  id?: number;
-  displayName?: string;
-  username?: string;
-  status?: string;
-  avatarUrl?: string;
-}
+import { ClientUser } from "@shared/schema";
 
 interface UserAvatarProps {
-  user?: User | null;
+  user?: ClientUser | null;
   className?: string;
   showStatus?: boolean;
 }
 
-export default function UserAvatar({ user, className, showStatus = false }: UserAvatarProps) {
+export function UserAvatar({
+  user,
+  className = "",
+  showStatus = false,
+}: UserAvatarProps) {
   if (!user) {
     return (
-      <Avatar className={className}>
-        <AvatarFallback>?</AvatarFallback>
-      </Avatar>
+      <div
+        className={`flex items-center justify-center bg-gray-200 rounded-full ${className}`}
+      >
+        <span className="text-gray-500">?</span>
+      </div>
     );
   }
 
-  // Get initial from display name or username
-  const getInitials = () => {
-    if (user.displayName) {
-      return user.displayName.charAt(0).toUpperCase();
-    } else if (user.username) {
-      return user.username.charAt(0).toUpperCase();
-    }
-    return "?";
-  };
+  if (user.avatarUrl) {
+    return (
+      <div className="relative">
+        <img
+          src={user.avatarUrl}
+          alt={user.displayName}
+          className={`rounded-full object-cover ${className}`}
+        />
+        {showStatus && (
+          <div
+            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+              user.status === "online"
+                ? "bg-green-500"
+                : user.status === "away"
+                ? "bg-yellow-500"
+                : "bg-gray-500"
+            }`}
+          />
+        )}
+      </div>
+    );
+  }
 
-  const getStatusColor = () => {
-    switch (user.status) {
-      case "online":
-        return "bg-success";
-      case "away":
-        return "bg-warning";
-      case "busy":
-        return "bg-destructive";
-      case "offline":
-      default:
-        return "bg-gray-400";
-    }
-  };
+  const initials = user.displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="relative">
-      <Avatar className={className}>
-        {user.avatarUrl ? (
-          <AvatarImage src={user.avatarUrl} alt={user.displayName || user.username} />
-        ) : (
-          <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground">
-            {getInitials()}
-          </AvatarFallback>
-        )}
-      </Avatar>
-      
+      <div
+        className={`flex items-center justify-center bg-blue-500 text-white rounded-full ${className}`}
+      >
+        <span>{initials}</span>
+      </div>
       {showStatus && (
-        <span 
-          className={cn(
-            "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-dark-200",
-            getStatusColor()
-          )}
+        <div
+          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+            user.status === "online"
+              ? "bg-green-500"
+              : user.status === "away"
+              ? "bg-yellow-500"
+              : "bg-gray-500"
+          }`}
         />
       )}
     </div>

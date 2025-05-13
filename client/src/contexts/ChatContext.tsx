@@ -15,48 +15,56 @@ import {
   Message,
   DirectMessage,
   MessageWithUser,
-  User as SchemaUser,
+  User,
+  ChannelWithMemberCount,
+  DirectMessageWithUser,
+  WorkspaceMember,
+  ChannelMember,
+  ClientUser,
 } from "@shared/schema";
-
-// Use the User type from AuthContext
-type User = {
-  id: number;
-  username: string;
-  displayName: string;
-  status: string;
-  avatarUrl?: string | null;
-};
+import { useNavigate } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 
 // Extend the MessageWithUser type to include optimistic properties
 interface ExtendedMessage extends MessageWithUser {
   _isOptimistic?: boolean;
-  updatedAt: Date;
 }
 
 // Extend the DirectMessage type to include user information
-interface ExtendedDirectMessage extends DirectMessage {
-  otherUser: User;
-  lastMessage?: ExtendedMessage;
+interface ExtendedDirectMessage extends DirectMessageWithUser {
+  _isOptimistic?: boolean;
 }
 
 // Define types for our chat messages and state
-interface ChatContextType {
-  activeWorkspace: Workspace | null;
-  activeChannel: Channel | null;
-  activeDM: DirectMessage | null;
-  activeChat: Channel | DirectMessage | null;
+export interface ChatContextType {
+  user: ClientUser | null;
   messages: MessageWithUser[];
+  isLoadingMessages: boolean;
+  activeChannel: Channel | null;
+  activeDM: DirectMessageWithUser | null;
+  activeWorkspace: Workspace | null;
   workspaces: Workspace[];
-  channels: Channel[];
-  directMessages: DirectMessage[];
-  isLoading: boolean;
-  error: Error | null;
-  setActiveWorkspace: (workspace: Workspace | null) => void;
-  setActiveChannel: (channel: Channel | null) => void;
-  setActiveDM: (dm: DirectMessage | null) => void;
-  sendMessage: (content: string) => Promise<void>;
-  createChannel: (name: string, description?: string) => Promise<void>;
+  channels: ChannelWithMemberCount[];
+  directMessages: DirectMessageWithUser[];
+  isConnected: boolean;
+  createChannel: (
+    name: string,
+    description?: string,
+    isPrivate?: boolean
+  ) => Promise<void>;
   createDirectMessage: (userId: number) => Promise<void>;
+  createWorkspace: (name: string, iconText?: string) => Promise<void>;
+  sendMessage: (content: string) => void;
+  setActiveChannel: (channel: Channel | null) => void;
+  setActiveDM: (dm: DirectMessageWithUser | null) => void;
+  setActiveWorkspace: (workspace: Workspace | null) => void;
+  workspaceMembers: WorkspaceMember[];
+  channelMembers: ChannelMember[];
+  inviteToWorkspace: (email: string, workspaceId: string) => Promise<void>;
+  joinChannel: (channelId: string) => Promise<void>;
+  leaveChannel: (channelId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -73,6 +81,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   const { user } = auth;
   const socket = useSocket();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -81,7 +90,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentChannel, setCurrentChannel] = useState<Channel | null>(null);
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<ChannelWithMemberCount[]>([]);
   const [currentDirectMessage, setCurrentDirectMessage] =
     useState<ExtendedDirectMessage | null>(null);
   const [directMessages, setDirectMessages] = useState<ExtendedDirectMessage[]>(
@@ -276,69 +285,22 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     if (!isConnected || !isAuthenticated) return;
 
     const handleNewMessage = (message: ExtendedMessage) => {
-      console.log("New message received:", message);
-      // Only add message if it belongs to the active conversation
-      if (
-        (currentChannel && message.channelId === currentChannel.id) ||
-        (currentDirectMessage &&
-          message.directMessageId === currentDirectMessage.id)
-      ) {
-        setMessages((prev) => {
-          // Check if this message was already in the list (prevent duplicates)
-          const exists = prev.some(
-            (m) =>
-              m.id === message.id ||
-              (m.content === message.content &&
-                m.userId === message.userId &&
-                Math.abs(
-                  new Date(m.createdAt).getTime() -
-                    new Date(message.createdAt).getTime()
-                ) < 5000)
-          );
-
-          if (exists) {
-            return prev;
-          }
-
-          // Check if this is a confirmation of an optimistic message
-          const optimisticIndex = prev.findIndex(
-            (m) =>
-              m._isOptimistic === true &&
-              m.content === message.content &&
-              m.userId === message.userId
-          );
-
-          if (optimisticIndex >= 0) {
-            // Replace the optimistic message with the real one
-            const newMessages = [...prev];
-            newMessages[optimisticIndex] = message;
-            return newMessages.sort((a, b) => {
-              return (
-                new Date(a.createdAt).getTime() -
-                new Date(b.createdAt).getTime()
-              );
-            });
-          }
-
-          // Otherwise add the new message and sort chronologically (oldest first)
-          return [...prev, message].sort((a, b) => {
-            return (
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            );
-          });
-        });
+      // Ensure the message has all required User fields
+      if (!message.user.email) {
+        console.error("Message user is missing required fields");
+        return;
       }
 
-      // Update last message in direct messages list
-      if (message.directMessageId) {
-        setDirectMessages((prev) =>
-          prev.map((dm) =>
-            dm.id === message.directMessageId
-              ? { ...dm, lastMessage: message }
-              : dm
-          )
-        );
-      }
+      setMessages((prev) => {
+        // Check if message already exists
+        const exists = prev.some((m) => m.id === message.id);
+        if (exists) {
+          return prev;
+        }
+
+        // Add new message
+        return [...prev, message];
+      });
     };
 
     const unsubscribe = socket.on("new_message", handleNewMessage);
@@ -357,15 +319,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   // API calls
   const fetchWorkspaces = async () => {
     try {
-      const response = await fetch("/api/workspaces");
-      if (response.ok) {
-        const data = await response.json();
-        setWorkspaces(data);
+      const response = await api.get("/workspaces");
+      setWorkspaces(response.data);
 
-        // Select first workspace if none is active
-        if (data.length > 0 && !currentWorkspace) {
-          setCurrentWorkspace(data[0]);
-        }
+      // Select first workspace if none is active
+      if (response.data.length > 0 && !currentWorkspace) {
+        setCurrentWorkspace(response.data[0]);
       }
     } catch (error) {
       console.error("Failed to fetch workspaces:", error);
@@ -374,15 +333,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchChannels = async (workspaceId: number) => {
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
-      if (response.ok) {
-        const data = await response.json();
-        setChannels(data);
+      const response = await api.get(`/workspaces/${workspaceId}/channels`);
+      setChannels(response.data);
 
-        // Select first channel if none is active
-        if (data.length > 0 && !currentChannel) {
-          setCurrentChannel(data[0]);
-        }
+      // Select first channel if none is active
+      if (response.data.length > 0 && !currentChannel) {
+        setCurrentChannel(response.data[0]);
       }
     } catch (error) {
       console.error("Failed to fetch channels:", error);
@@ -391,11 +347,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchDirectMessages = async () => {
     try {
-      const response = await fetch("/api/direct-messages");
-      if (response.ok) {
-        const data = await response.json();
-        setDirectMessages(data);
-      }
+      const response = await api.get("/direct-messages");
+      setDirectMessages(response.data);
     } catch (error) {
       console.error("Failed to fetch direct messages:", error);
     }
@@ -406,19 +359,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const endpoint =
         type === "channel"
-          ? `/api/channels/${id}/messages`
-          : `/api/direct-messages/${id}/messages`;
+          ? `/channels/${id}/messages`
+          : `/direct-messages/${id}/messages`;
 
-      const response = await fetch(endpoint);
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(
-          data.map((msg: MessageWithUser) => ({
-            ...msg,
-            _isOptimistic: false,
-          }))
-        );
-      }
+      const response = await api.get(endpoint);
+      setMessages(
+        response.data.map((msg: MessageWithUser) => ({
+          ...msg,
+          _isOptimistic: false,
+        }))
+      );
     } catch (error) {
       console.error("Failed to fetch messages:", error);
     } finally {
@@ -438,7 +388,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     setCurrentDirectMessage(dm);
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = (content: string) => {
     if (!user) {
       console.error("Cannot send message: User not authenticated");
       toast({
@@ -530,9 +480,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         user: {
           id: user.id,
           username: user.username,
+          email: user.email,
           displayName: user.displayName,
           status: user.status,
           avatarUrl: user.avatarUrl || null,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         },
         _isOptimistic: true,
       };
@@ -594,60 +547,39 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const createWorkspace = async (name: string, iconText: string) => {
-    if (!user) {
-      console.error("Cannot create workspace: User not authenticated");
-      toast({
-        title: "Authentication Error",
-        description: "Please log in to create a workspace.",
-        variant: "destructive",
-      });
-      return null;
-    }
-
+  const createWorkspace = async (name: string, iconText?: string) => {
     try {
-      const response = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          iconText,
-          userId: user.id,
-        }),
+      const response = await api.post("/workspaces", {
+        name,
+        iconText,
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to create workspace: ${response.statusText}`);
+      if (response.status !== 200) {
+        throw new Error("Failed to create workspace");
       }
 
-      const newWorkspace = await response.json();
-
-      // Update workspaces list
+      const newWorkspace = response.data;
       setWorkspaces((prev) => [...prev, newWorkspace]);
-
-      // Set as active workspace
       setCurrentWorkspace(newWorkspace);
-
       toast({
-        title: "Workspace Created",
-        description: `${name} workspace has been created successfully.`,
+        title: "Success",
+        description: "Workspace created successfully",
       });
-
-      return newWorkspace;
     } catch (error) {
       console.error("Error creating workspace:", error);
       toast({
-        title: "Failed to Create Workspace",
-        description: "An error occurred while creating your workspace.",
+        title: "Error",
+        description: "Failed to create workspace",
         variant: "destructive",
       });
-      return null;
     }
   };
 
-  const createChannel = async (name: string, description?: string) => {
+  const createChannel = async (
+    name: string,
+    description?: string,
+    isPrivate?: boolean
+  ) => {
     if (!user) {
       console.error("Cannot create channel: User not authenticated");
       toast({
@@ -678,7 +610,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
           },
           body: JSON.stringify({
             name,
-            isPrivate: false,
+            isPrivate: isPrivate || false,
             description: description || "",
             creatorId: user.id,
           }),
@@ -819,35 +751,142 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const workspaceMembers =
+    useQuery({
+      queryKey: ["/api/workspace-members", currentWorkspace?.id],
+      queryFn: async () => {
+        if (!currentWorkspace) return [];
+        const response = await api.get(
+          `/workspaces/${currentWorkspace.id}/members`
+        );
+        return response.data;
+      },
+      enabled: !!currentWorkspace,
+    }).data || [];
+
+  const channelMembers =
+    useQuery({
+      queryKey: ["/api/channel-members", currentChannel?.id],
+      queryFn: async () => {
+        if (!currentChannel) return [];
+        const response = await api.get(
+          `/channels/${currentChannel.id}/members`
+        );
+        return response.data;
+      },
+      enabled: !!currentChannel,
+    }).data || [];
+
+  const inviteToWorkspace = async (email: string, workspaceId: string) => {
+    if (!user) {
+      console.error("Cannot invite to workspace: User not authenticated");
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to invite to a workspace.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.post(`/workspaces/${workspaceId}/invite`, {
+        email,
+      });
+      toast({
+        title: "Invitation Sent",
+        description: `Invitation to workspace has been sent to ${email}.`,
+      });
+    } catch (error) {
+      console.error("Error inviting to workspace:", error);
+      toast({
+        title: "Failed to Invite to Workspace",
+        description: "An error occurred while inviting to the workspace.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const joinChannel = async (channelId: string) => {
+    if (!user) {
+      console.error("Cannot join channel: User not authenticated");
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to join a channel.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.post(`/channels/${channelId}/join`);
+      toast({
+        title: "Joined Channel",
+        description: `You have joined the channel.`,
+      });
+    } catch (error) {
+      console.error("Error joining channel:", error);
+      toast({
+        title: "Failed to Join Channel",
+        description: "An error occurred while joining the channel.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const leaveChannel = async (channelId: string) => {
+    if (!user) {
+      console.error("Cannot leave channel: User not authenticated");
+      toast({
+        title: "Authentication Error",
+        description: "Please log in to leave a channel.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.post(`/channels/${channelId}/leave`);
+      toast({
+        title: "Left Channel",
+        description: `You have left the channel.`,
+      });
+    } catch (error) {
+      console.error("Error leaving channel:", error);
+      toast({
+        title: "Failed to Leave Channel",
+        description: "An error occurred while leaving the channel.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const contextValue: ChatContextType = {
+    user,
+    messages,
+    isLoadingMessages,
+    activeChannel: currentChannel,
+    activeDM: currentDirectMessage,
+    activeWorkspace: currentWorkspace,
+    workspaces,
+    channels,
+    directMessages,
+    isConnected,
+    createChannel,
+    createDirectMessage,
+    createWorkspace,
+    sendMessage,
+    setActiveChannel,
+    setActiveDM,
+    setActiveWorkspace,
+    workspaceMembers: [], // TODO: Implement this
+    channelMembers: [], // TODO: Implement this
+    inviteToWorkspace,
+    joinChannel,
+    leaveChannel,
+  };
+
   return (
-    <ChatContext.Provider
-      value={{
-        activeWorkspace: currentWorkspace,
-        workspaces,
-        activeChannel: currentChannel,
-        channels,
-        activeDM: currentDirectMessage,
-        directMessages,
-        messages: messages as MessageWithUser[],
-        isLoadingMessages,
-        isConnected,
-        setActiveWorkspace,
-        setActiveChannel,
-        setActiveDM: setActiveDM as (dm: DirectMessage | null) => void,
-        sendMessage,
-        loadMoreMessages,
-        createWorkspace,
-        createChannel,
-        refreshChannels,
-        reconnectSocket,
-        hasNewMessages,
-        isLoading,
-        error,
-        createDirectMessage,
-      }}
-    >
-      {children}
-    </ChatContext.Provider>
+    <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>
   );
 };
 

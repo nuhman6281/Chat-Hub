@@ -1,153 +1,114 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/useAuth";
-import { useForm } from "react-hook-form";
 import { useState } from "react";
-import { Link } from "wouter";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface RegisterFormValues {
-  username: string;
-  displayName: string;
+interface RegisterFormData {
+  email: string;
   password: string;
-  confirmPassword: string;
+  displayName: string;
 }
 
 export default function Register() {
-  const { register: registerUser } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const form = useForm<RegisterFormValues>({
-    defaultValues: {
-      username: "",
-      displayName: "",
-      password: "",
-      confirmPassword: "",
-    },
+  const navigate = useNavigate();
+  const { register } = useAuth();
+  const [formData, setFormData] = useState<RegisterFormData>({
+    email: "",
+    password: "",
+    displayName: "",
   });
-  
-  const onSubmit = async (data: RegisterFormValues) => {
-    if (data.password !== data.confirmPassword) {
-      form.setError("confirmPassword", {
-        type: "manual",
-        message: "Passwords do not match",
-      });
-      return;
-    }
-    
+  const [error, setError] = useState<string>("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
     try {
-      setIsLoading(true);
-      await registerUser(data.username, data.password, data.displayName);
-    } catch (error) {
-      console.error("Registration failed:", error);
-    } finally {
-      setIsLoading(false);
+      await register(formData.email, formData.password, formData.displayName);
+      navigate("/");
+    } catch (err) {
+      setError("Registration failed. Please try again.");
     }
   };
-  
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-light-200 dark:bg-dark-300 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-2">
-            <div className="h-12 w-12 bg-gradient-to-r from-primary to-secondary rounded-lg flex items-center justify-center text-white font-bold text-xl">
-              CH
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+            Create your account
+          </h2>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-gray-800"
+                placeholder="Email address"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="displayName" className="sr-only">
+                Display Name
+              </label>
+              <input
+                id="displayName"
+                name="displayName"
+                type="text"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-gray-800"
+                placeholder="Display Name"
+                value={formData.displayName}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm dark:bg-gray-800"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+              />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>
-            Enter your information to create your ChatHub account
-          </CardDescription>
-        </CardHeader>
-        
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                placeholder="Choose a username"
-                {...form.register("username", { required: true })}
-                disabled={isLoading}
-              />
-              {form.formState.errors.username && (
-                <p className="text-red-500 text-sm">Username is required</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                placeholder="Your full name"
-                {...form.register("displayName", { required: true })}
-                disabled={isLoading}
-              />
-              {form.formState.errors.displayName && (
-                <p className="text-red-500 text-sm">Display name is required</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Create a password"
-                {...form.register("password", { required: true, minLength: 6 })}
-                disabled={isLoading}
-              />
-              {form.formState.errors.password?.type === "required" && (
-                <p className="text-red-500 text-sm">Password is required</p>
-              )}
-              {form.formState.errors.password?.type === "minLength" && (
-                <p className="text-red-500 text-sm">Password must be at least 6 characters</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                {...form.register("confirmPassword", { required: true })}
-                disabled={isLoading}
-              />
-              {form.formState.errors.confirmPassword && (
-                <p className="text-red-500 text-sm">
-                  {form.formState.errors.confirmPassword.message || "Please confirm your password"}
-                </p>
-              )}
-            </div>
-          </CardContent>
-          
-          <CardFooter className="flex flex-col space-y-4">
-            <Button
+
+          {error && (
+            <div className="text-red-500 text-sm text-center">{error}</div>
+          )}
+
+          <div>
+            <button
               type="submit"
-              className="w-full"
-              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                  Creating account...
-                </div>
-              ) : (
-                "Create Account"
-              )}
-            </Button>
-            
-            <div className="text-center text-sm">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
-            </div>
-          </CardFooter>
+              Create Account
+            </button>
+          </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }

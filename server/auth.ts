@@ -3,11 +3,16 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User, WorkspaceMember, ChannelMember } from "./schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import {
+  Strategy as JwtStrategy,
+  ExtractJwt,
+  VerifiedCallback,
+} from "passport-jwt";
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "chat-app-super-secret-key-for-development";
@@ -25,19 +30,26 @@ declare global {
       password: string;
       displayName: string;
       status: string;
-      avatarUrl?: string | null;
+      avatarUrl: string | null;
+      createdAt: Date;
+      updatedAt: Date;
     }
   }
 }
 
 const PostgresSessionStore = connectPg(session);
 
-export async function comparePasswords(
-  supplied: string,
-  stored: string
-): Promise<boolean> {
-  return await bcrypt.compare(supplied, stored);
-}
+export const hashPassword = async (password: string): Promise<string> => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+export const comparePasswords = async (
+  password: string,
+  hashedPassword: string
+): Promise<boolean> => {
+  return bcrypt.compare(password, hashedPassword);
+};
 
 export function generateToken(user: User): string {
   // Ensure avatarUrl is either a string or null, not undefined
@@ -47,17 +59,42 @@ export function generateToken(user: User): string {
   };
 
   return jwt.sign(
-    { id: sanitizedUser.id, username: sanitizedUser.username },
+    {
+      id: sanitizedUser.id,
+      username: sanitizedUser.username,
+      email: sanitizedUser.email,
+      displayName: sanitizedUser.displayName,
+      status: sanitizedUser.status,
+      avatarUrl: sanitizedUser.avatarUrl,
+      createdAt: sanitizedUser.createdAt,
+      updatedAt: sanitizedUser.updatedAt,
+    },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
 }
 
-export function verifyToken(
-  token: string
-): { id: number; username: string } | null {
+export function verifyToken(token: string): {
+  id: number;
+  username: string;
+  email: string;
+  displayName: string;
+  status: string;
+  avatarUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+} | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+    return jwt.verify(token, JWT_SECRET) as {
+      id: number;
+      username: string;
+      email: string;
+      displayName: string;
+      status: string;
+      avatarUrl: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
   } catch (error) {
     return null;
   }
@@ -89,21 +126,54 @@ export function setupAuth(app: Express) {
 
   // Configure local strategy for username/password auth
   passport.use(
-    new LocalStrategy(async (username: string, password: string, done: any) => {
-      try {
-        const user = await storage.getUserByUsername(username);
-        if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false, { message: "Invalid username or password" });
+    new LocalStrategy(
+      {
+        usernameField: "email",
+        passwordField: "password",
+      },
+      async (email, password, done) => {
+        try {
+          const user = await storage.getUserByEmail(email);
+          if (!user) {
+            return done(null, false, { message: "Invalid email or password" });
+          }
+
+          const isValid = await comparePasswords(password, user.password!);
+          if (!isValid) {
+            return done(null, false, { message: "Invalid email or password" });
+          }
+
+          return done(null, user);
+        } catch (error) {
+          return done(error);
         }
-        return done(null, user);
-      } catch (error) {
-        return done(error);
       }
-    })
+    )
+  );
+
+  // Configure JWT strategy for JWT auth
+  passport.use(
+    new JwtStrategy(
+      {
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        secretOrKey: JWT_SECRET,
+      },
+      async (payload: { id: number }, done: VerifiedCallback) => {
+        try {
+          const user = await storage.getUser(payload.id);
+          if (!user) {
+            return done(null, false);
+          }
+          return done(null, user);
+        } catch (error) {
+          return done(error, false);
+        }
+      }
+    )
   );
 
   // Serialize user to the session
-  passport.serializeUser((user, done) => {
+  passport.serializeUser((user: User, done) => {
     done(null, user.id);
   });
 
@@ -154,7 +224,7 @@ export function setupAuth(app: Express) {
       }
 
       // Hash the password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await hashPassword(password);
 
       // Create the user
       console.log("Creating user with:", { username, email, displayName });
@@ -324,14 +394,14 @@ export function setupAuth(app: Express) {
         // Get the user from the database
         storage
           .getUser(decoded.id)
-          .then((user) => {
+          .then((user: User | undefined) => {
             if (user) {
               req.user = user;
               return next();
             }
             res.status(401).json({ message: "Invalid token" });
           })
-          .catch((err) => {
+          .catch((err: Error) => {
             console.error("Token validation error:", err);
             res.status(500).json({ message: "Server error" });
           });
@@ -365,11 +435,13 @@ export function ensureAuthenticated(
       req.user = {
         id: decoded.id,
         username: decoded.username,
-        email: decoded.username, // Use username as email for JWT auth
+        email: decoded.email,
         password: "", // Not needed for JWT auth
-        displayName: "", // Will be fetched if needed
-        status: "offline",
-        avatarUrl: null,
+        displayName: decoded.displayName,
+        status: decoded.status,
+        avatarUrl: decoded.avatarUrl,
+        createdAt: decoded.createdAt,
+        updatedAt: decoded.updatedAt,
       };
       return next();
     }
@@ -377,3 +449,118 @@ export function ensureAuthenticated(
 
   res.status(401).json({ message: "Not authenticated" });
 }
+
+export const isWorkspaceMember = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const workspaceId = parseInt(req.params.workspaceId);
+  if (!workspaceId) {
+    return res.status(400).json({ message: "Invalid workspace ID" });
+  }
+
+  try {
+    const isMember = await storage.isUserInWorkspace(
+      req.user?.id || 0,
+      workspaceId
+    );
+    if (!isMember) {
+      return res.status(403).json({ message: "Not a workspace member" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error checking workspace membership:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const isChannelMember = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const channelId = parseInt(req.params.channelId);
+  if (!channelId) {
+    return res.status(400).json({ message: "Invalid channel ID" });
+  }
+
+  try {
+    const isMember = await storage.isUserInChannel(
+      req.user?.id || 0,
+      channelId
+    );
+    if (!isMember) {
+      return res.status(403).json({ message: "Not a channel member" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error checking channel membership:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const isDirectMessageParticipant = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const dmId = parseInt(req.params.dmId);
+  if (isNaN(dmId)) {
+    return res.status(400).json({ message: "Invalid direct message ID" });
+  }
+
+  const dm = await storage.getDirectMessage(dmId);
+  if (!dm) {
+    return res.status(404).json({ message: "Direct message not found" });
+  }
+
+  if (dm.user1Id !== req.user?.id && dm.user2Id !== req.user?.id) {
+    return res.status(403).json({ message: "Not a participant" });
+  }
+
+  next();
+};
+
+export const isWorkspaceOwner = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const workspaceId = parseInt(req.params.workspaceId);
+  if (isNaN(workspaceId)) {
+    return res.status(400).json({ message: "Invalid workspace ID" });
+  }
+
+  const workspace = await storage.getWorkspace(workspaceId);
+  if (!workspace) {
+    return res.status(404).json({ message: "Workspace not found" });
+  }
+
+  if (workspace.ownerId !== req.user?.id) {
+    return res.status(403).json({ message: "Not the workspace owner" });
+  }
+
+  next();
+};
+
+// Create a seed user for testing
+const seedUser: User = {
+  id: 1,
+  username: "demo",
+  email: "demo@example.com",
+  password: "demo",
+  displayName: "Demo User",
+  status: "online",
+  avatarUrl: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};

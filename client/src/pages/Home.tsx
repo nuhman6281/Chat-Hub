@@ -69,6 +69,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 // Import chat components
 import MessageList from "@/components/chat/MessageList";
 import MessageInput from "@/components/chat/MessageInput";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Infer TypeScript types from table objects
 type Workspace = typeof workspacesTable.$inferSelect;
@@ -79,6 +80,7 @@ type DirectMessage = DirectMessageWithUser;
 const createWorkspaceSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   description: z.string().optional(),
+  isPrivate: z.boolean().default(false),
 });
 
 const createChannelSchema = z.object({
@@ -89,6 +91,18 @@ const createChannelSchema = z.object({
 
 type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
+
+interface CreateWorkspaceFormData {
+  name: string;
+  description: string;
+  isPrivate: boolean;
+}
+
+interface CreateChannelFormData {
+  name: string;
+  description: string;
+  isPrivate: boolean;
+}
 
 export default function HomePage() {
   // Use non-null assertion operator to assure TypeScript the context isn't null
@@ -123,6 +137,20 @@ export default function HomePage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedWorkspaceForSettings, setSelectedWorkspaceForSettings] =
     useState<Workspace | null>(null);
+
+  const [workspaceFormData, setWorkspaceFormData] =
+    useState<CreateWorkspaceFormData>({
+      name: "",
+      description: "",
+      isPrivate: false,
+    });
+  const [channelFormData, setChannelFormData] = useState<CreateChannelFormData>(
+    {
+      name: "",
+      description: "",
+      isPrivate: false,
+    }
+  );
 
   // Handle routing - set active components based on URL parameters
   useEffect(() => {
@@ -207,6 +235,7 @@ export default function HomePage() {
     defaultValues: {
       name: "",
       description: "",
+      isPrivate: false,
     },
   });
 
@@ -221,27 +250,35 @@ export default function HomePage() {
   });
 
   // Handle creating a workspace
-  const onCreateWorkspace = async (values: CreateWorkspaceValues) => {
-    const newWorkspace = await createWorkspace(
-      values.name,
-      values.description || ""
-    );
-    if (newWorkspace) {
-      setIsCreatingWorkspace(false);
-      workspaceForm.reset();
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createWorkspace(
+        workspaceFormData.name,
+        workspaceFormData.description
+      );
+      setWorkspaceFormData({
+        name: "",
+        description: "",
+        isPrivate: false,
+      });
+    } catch (err) {
+      console.error("Failed to create workspace:", err);
     }
   };
 
   // Handle creating a channel
-  const onCreateChannel = async (values: CreateChannelValues) => {
-    const newChannel = await createChannel(
-      values.name,
-      values.isPrivate,
-      values.description
-    );
-    if (newChannel) {
-      setIsCreatingChannel(false);
-      channelForm.reset();
+  const handleCreateChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createChannel(channelFormData.name, channelFormData.description);
+      setChannelFormData({
+        name: "",
+        description: "",
+        isPrivate: false,
+      });
+    } catch (err) {
+      console.error("Failed to create channel:", err);
     }
   };
 
@@ -361,7 +398,7 @@ export default function HomePage() {
                   </DialogHeader>
                   <Form {...workspaceForm}>
                     <form
-                      onSubmit={workspaceForm.handleSubmit(onCreateWorkspace)}
+                      onSubmit={handleCreateWorkspace}
                       className="space-y-4"
                     >
                       <FormField
@@ -393,6 +430,23 @@ export default function HomePage() {
                               />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={workspaceForm.control}
+                        name="isPrivate"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel>Private workspace</FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -532,9 +586,7 @@ export default function HomePage() {
                           </DialogHeader>
                           <Form {...channelForm}>
                             <form
-                              onSubmit={channelForm.handleSubmit(
-                                onCreateChannel
-                              )}
+                              onSubmit={handleCreateChannel}
                               className="space-y-4"
                             >
                               <FormField
@@ -568,6 +620,23 @@ export default function HomePage() {
                                       />
                                     </FormControl>
                                     <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={channelForm.control}
+                                name="isPrivate"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel>Private channel</FormLabel>
+                                    </div>
                                   </FormItem>
                                 )}
                               />

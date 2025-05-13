@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   status: text("status").default("offline").notNull(),
   avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -33,6 +35,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type ClientUser = Omit<User, "password">;
 
 // Define user relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -253,19 +256,17 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
   }),
 }));
 
-// Message with user information
+// Extended types for client-side use
 export type MessageWithUser = Message & {
-  user: User;
+  user: ClientUser;
 };
 
-// Channel with member count
 export type ChannelWithMemberCount = Channel & {
   memberCount: number;
 };
 
-// Direct message with other user info
 export type DirectMessageWithUser = DirectMessage & {
-  otherUser: User;
+  otherUser: ClientUser;
   lastMessage?: MessageWithUser;
 };
 

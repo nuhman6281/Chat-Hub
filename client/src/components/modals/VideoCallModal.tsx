@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -5,21 +6,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useChat } from "@/hooks/useChat";
-import { useAuth } from "@/hooks/useAuth";
-import { X, Maximize, Mic, MicOff, Video, VideoOff, Monitor, MoreHorizontal, PhoneOff } from "lucide-react";
+import { useChat } from "@/contexts/ChatContext";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  X,
+  Maximize,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Monitor,
+  MoreHorizontal,
+  PhoneOff,
+} from "lucide-react";
 
 interface VideoCallModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function VideoCallModal({ isOpen, onClose }: VideoCallModalProps) {
-  const { activeChat } = useChat();
+export const VideoCallModal: React.FC<VideoCallModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const { activeChannel, activeDM } = useChat();
   const { user } = useAuth();
-  
-  if (!activeChat) return null;
-  
+
+  if (!activeChannel && !activeDM) return null;
+
+  const handleVideoCall = () => {
+    // Implement video call functionality
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden">
@@ -27,19 +45,27 @@ export default function VideoCallModal({ isOpen, onClose }: VideoCallModalProps)
           <div className="flex items-center">
             <Video className="text-primary mr-2 h-5 w-5" />
             <DialogTitle>
-              Video Call - {activeChat.type === "channel" ? "#" + activeChat.name : activeChat.name}
+              Video Call -{" "}
+              {activeChannel
+                ? "#" + activeChannel.name
+                : activeDM?.otherUser.displayName}
             </DialogTitle>
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Maximize className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </DialogHeader>
-        
+
         <div className="p-0 bg-gray-800 relative h-96 flex flex-wrap justify-center items-center">
           <div className="w-full h-full absolute top-0 left-0 right-0 bottom-0 z-0">
             <div className="w-full h-full bg-gradient-to-r from-gray-900 to-gray-800 flex items-center justify-center">
@@ -49,15 +75,15 @@ export default function VideoCallModal({ isOpen, onClose }: VideoCallModalProps)
               </div>
             </div>
           </div>
-          
+
           {/* User's own video preview */}
           <div className="absolute bottom-4 right-4 h-36 w-48 bg-gray-900 rounded-lg overflow-hidden z-10 shadow-lg border-2 border-primary">
             <div className="w-full h-full relative">
               {user?.avatarUrl ? (
-                <img 
-                  src={user.avatarUrl} 
-                  className="w-full h-full object-cover" 
-                  alt="Your video" 
+                <img
+                  src={user.avatarUrl}
+                  className="w-full h-full object-cover"
+                  alt="Your video"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-800">
@@ -72,39 +98,39 @@ export default function VideoCallModal({ isOpen, onClose }: VideoCallModalProps)
             </div>
           </div>
         </div>
-        
+
         <div className="p-4 bg-gray-900 flex items-center justify-center space-x-4">
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="bg-gray-700 hover:bg-gray-600 border-0 text-white h-12 w-12 rounded-full"
           >
             <MicOff className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="bg-gray-700 hover:bg-gray-600 border-0 text-white h-12 w-12 rounded-full"
           >
             <Video className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="bg-gray-700 hover:bg-gray-600 border-0 text-white h-12 w-12 rounded-full"
           >
             <Monitor className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="bg-gray-700 hover:bg-gray-600 border-0 text-white h-12 w-12 rounded-full"
           >
             <MoreHorizontal className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="destructive" 
-            size="icon" 
+          <Button
+            variant="destructive"
+            size="icon"
             onClick={onClose}
             className="animate-pulse h-12 w-12 rounded-full"
           >
@@ -114,4 +140,4 @@ export default function VideoCallModal({ isOpen, onClose }: VideoCallModalProps)
       </DialogContent>
     </Dialog>
   );
-}
+};

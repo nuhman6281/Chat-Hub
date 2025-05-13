@@ -280,96 +280,15 @@ ${selectedText}
     }, 0);
   };
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !(activeChannel || activeDM)) {
-      if (!message.trim()) {
-        setSendError("Message cannot be empty");
-        return;
-      }
-      if (!(activeChannel || activeDM)) {
-        setSendError("No active conversation");
-        return;
-      }
-      return;
-    }
-
-    // Clear any previous errors
-    setSendError(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) return;
 
     try {
-      const success = sendMessage(message.trim());
-      // Only clear the message if send was successful
-      if (!success) {
-        setSendError("Failed to send message");
-        toast({
-          title: "Message Failed",
-          description: "Could not send message. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Reset all states after successful send
+      await sendMessage(message.trim());
       setMessage("");
-      setActiveFormats({
-        bold: false,
-        italic: false,
-        code: false,
-        link: false,
-      });
-
-      // Reset typing status
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      setIsTyping(false);
-      setTypingStatus(false);
-
-      // Focus textarea after sending
-      textareaRef.current?.focus();
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setSendError("An unexpected error occurred");
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while sending your message.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Send message on Enter (without Shift)
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-      return;
-    }
-
-    // Keyboard shortcuts for formatting
-    if (e.ctrlKey || e.metaKey) {
-      switch (e.key.toLowerCase()) {
-        case "b": // Bold
-          e.preventDefault();
-          applyFormatting("bold");
-          break;
-        case "i": // Italic
-          e.preventDefault();
-          applyFormatting("italic");
-          break;
-        case "k": // Link (using K as shortcut since L is often used for address bar)
-          e.preventDefault();
-          applyFormatting("link");
-          break;
-        case "`": // Inline code
-          e.preventDefault();
-          applyFormatting("code");
-          break;
-        case "\\": // Code block (as alternative shortcut)
-          e.preventDefault();
-          insertCodeBlock();
-          break;
-      }
+    } catch (err) {
+      console.error("Failed to send message:", err);
     }
   };
 
@@ -717,7 +636,7 @@ ${selectedText}
               rows={1}
               value={message}
               onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleSubmit}
               onSelect={handleTextSelect}
               disabled={isChatDisabled}
             />
@@ -763,7 +682,7 @@ ${selectedText}
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full"
-                onClick={handleSendMessage}
+                onClick={handleSubmit}
                 disabled={isChatDisabled || !message.trim()}
                 title="Send message"
               >
