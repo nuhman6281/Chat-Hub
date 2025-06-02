@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 
-// Define the BASE_URL constant
-const BASE_URL = process.env.VITE_API_URL || "http://localhost:3000";
+// Define the BASE_URL constant - use import.meta.env instead of process.env
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export type SocketEventHandler = (data: any) => void;
 
@@ -47,16 +47,16 @@ export const createSocket = (): Socket => {
     // Extract base URL components
     let url = BASE_URL || "";
 
-    // Default to localhost:3000 if no BASE_URL
+    // Default to localhost:3001 if no BASE_URL
     if (!url) {
-      url = "http://localhost:3000";
+      url = "http://localhost:3001";
     }
 
     // Simple direct WebSocket URL without using URL parsing
     // This avoids issues with undefined port
     if (url.includes("localhost")) {
       // Append the correct path /api/ws
-      return `ws://localhost:3000/api/ws?token=${uid}`;
+      return `ws://localhost:3001/api/ws?token=${uid}`;
     }
 
     // Parse the URL to ensure we have all components
@@ -64,15 +64,15 @@ export const createSocket = (): Socket => {
       const urlObj = new URL(url);
       // Replace http/https with ws/wss
       const protocol = urlObj.protocol === "https:" ? "wss:" : "ws:";
-      // Always use port 3000 for local development
+      // Always use port 3001 for development
       const port =
-        urlObj.hostname === "localhost" ? "3000" : urlObj.port || "3000";
+        urlObj.hostname === "localhost" ? "3001" : urlObj.port || "3001";
       // Construct the WebSocket URL with fixed port and correct path
       return `${protocol}//${urlObj.hostname}:${port}/api/ws?token=${uid}`;
     } catch (error) {
       console.error("Invalid base URL for WebSocket", error);
       // Fallback to a safe default with the correct path
-      return `ws://localhost:3000/api/ws?token=${uid}`;
+      return `ws://localhost:3001/api/ws?token=${uid}`;
     }
   };
 
@@ -82,6 +82,8 @@ export const createSocket = (): Socket => {
       return;
     }
 
+    console.log(`Connecting socket for user ${uid}...`);
+
     // Clear any existing reconnect timer
     if (retryTimeout) {
       clearTimeout(retryTimeout);
@@ -90,6 +92,8 @@ export const createSocket = (): Socket => {
 
     // Check if we already have an active connection
     if (socket) {
+      console.log(`Existing socket found. State: ${socket.readyState}`);
+
       if (socket.readyState === WebSocket.OPEN) {
         console.log("Socket is already open - no need to reconnect");
 
@@ -106,7 +110,7 @@ export const createSocket = (): Socket => {
           try {
             const message = {
               type: "auth",
-              data: { userId },
+              userId: String(userId),
             };
             console.log("Sending authentication message:", message);
             socket.send(JSON.stringify(message));
@@ -124,6 +128,10 @@ export const createSocket = (): Socket => {
 
       // Close any existing socket in other states
       try {
+        console.log(
+          "Closing existing socket in invalid state:",
+          socket.readyState
+        );
         socket.close(1000, "Creating new connection");
       } catch (e) {
         console.log("Error closing existing socket:", e);
@@ -149,7 +157,7 @@ export const createSocket = (): Socket => {
           try {
             const message = {
               type: "auth",
-              data: { userId },
+              userId: String(userId),
             };
             console.log("Sending authentication message:", message);
             if (socket) {
@@ -324,11 +332,28 @@ export const createSocket = (): Socket => {
     }
 
     try {
-      // Format message: Spread data directly into the message object
-      const message = {
-        type: event,
-        ...data, // Spread the data here
-      };
+      // Format message based on event type
+      let message;
+
+      if (event === "auth") {
+        message = {
+          type: event,
+          userId: data.userId || userId,
+        };
+      } else if (event === "message") {
+        message = {
+          type: event,
+          content: data.content,
+          channelId: data.channelId,
+          directMessageId: data.directMessageId,
+        };
+      } else {
+        // Default case: use the provided data directly
+        message = {
+          type: event,
+          ...data,
+        };
+      }
 
       // Log based on type
       if (event === "auth") {
@@ -385,7 +410,7 @@ export const createSocket = (): Socket => {
     }
 
     try {
-      // Send userId directly, not nested in data
+      // Fix the authentication message format to match server expectations
       const message = {
         type: "auth",
         userId: String(userId),

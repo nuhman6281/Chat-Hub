@@ -17,14 +17,26 @@ const patchViteWebSocket = () => {
       // Handle Vite HMR WebSocket
       if (url.includes("localhost:undefined")) {
         console.log("[WebSocket Patch] Fixing Vite HMR URL:", url);
-        url = url.replace("localhost:undefined", "localhost:3001");
+        url = url.replace("localhost:undefined", "localhost:3002");
         return new originalWebSocket(url, protocols);
       }
 
-      // Handle application WebSocket
+      // Handle application WebSocket - make sure to use server port
       if (url.includes("/api/ws")) {
-        console.log("[WebSocket Patch] Using application WebSocket URL:", url);
-        return new originalWebSocket(url, protocols);
+        // Fix: create proper WebSocket URL without concatenation
+        let wsPath = url;
+        if (url.startsWith("/")) {
+          // For paths starting with /, construct the full URL
+          wsPath = `ws://localhost:3001${url}`;
+        } else if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+          // For relative paths without protocol
+          wsPath = `ws://localhost:3001/${url}`;
+        }
+        console.log(
+          "[WebSocket Patch] Using application WebSocket URL:",
+          wsPath
+        );
+        return new originalWebSocket(wsPath, protocols);
       }
 
       // Ensure proper WS protocol is used
@@ -44,7 +56,7 @@ const patchViteWebSocket = () => {
         // Extract token if present
         const tokenMatch = url.match(/token=([^&]*)/);
         const token = tokenMatch ? tokenMatch[1] : "";
-        url = `ws://localhost:3000/api/ws?token=${token}`;
+        url = `ws://localhost:3001/api/ws?token=${token}`;
         console.log("[WebSocket Patch] Using fallback URL:", url);
       }
     }
@@ -73,13 +85,22 @@ if (typeof window !== "undefined") {
 
   // Apply WebSocket patch
   patchViteWebSocket();
+
+  // Define base API URL for use throughout the app
+  (window as any).API_BASE_URL = "http://localhost:3001";
 }
 
 // Separate component to prevent context initialization issues
 function AppWithProviders() {
   return (
     <ThemeProvider>
-      <App />
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ChatProvider>
+            <App />
+          </ChatProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }
@@ -88,9 +109,7 @@ function AppWithProviders() {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Suspense fallback={<div>Loading...</div>}>
-      <QueryClientProvider client={queryClient}>
-        <AppWithProviders />
-      </QueryClientProvider>
+      <AppWithProviders />
     </Suspense>
   </StrictMode>
 );

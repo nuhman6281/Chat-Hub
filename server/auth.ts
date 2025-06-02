@@ -64,6 +64,20 @@ export function verifyToken(
 }
 
 export function setupAuth(app: Express) {
+  // Create user_sessions table if it doesn't exist
+  try {
+    console.log("Creating user_sessions table if it doesn't exist");
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        sid VARCHAR NOT NULL PRIMARY KEY,
+        sess JSON NOT NULL,
+        expire TIMESTAMP(6) NOT NULL
+      )
+    `);
+  } catch (error) {
+    console.error("Error creating user_sessions table:", error);
+  }
+
   // Set up session middleware
   const sessionOptions: session.SessionOptions = {
     secret: SESSION_SECRET,

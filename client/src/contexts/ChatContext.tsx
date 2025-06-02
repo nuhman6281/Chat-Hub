@@ -25,6 +25,8 @@ type User = {
   displayName: string;
   status: string;
   avatarUrl?: string | null;
+  email: string;
+  password: string;
 };
 
 // Extend the MessageWithUser type to include optimistic properties
@@ -50,6 +52,8 @@ interface ChatContextType {
   channels: Channel[];
   directMessages: DirectMessage[];
   isLoading: boolean;
+  isLoadingMessages: boolean;
+  isConnected: boolean;
   error: Error | null;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setActiveChannel: (channel: Channel | null) => void;
@@ -57,6 +61,14 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   createChannel: (name: string, description?: string) => Promise<void>;
   createDirectMessage: (userId: number) => Promise<void>;
+  reconnectSocket: () => void;
+  refreshChannels: () => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
+  createWorkspace: (
+    name: string,
+    iconText: string
+  ) => Promise<Workspace | null>;
+  hasNewMessages: boolean;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -249,13 +261,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
       // Set a timeout to retry authentication if it doesn't succeed
       authTimeoutId = setTimeout(() => {
-        if (!isAuthenticated && isConnected) {
+        if (!isAuthenticated && socket.connected) {
           console.log(
-            "ChatContext: Authentication timeout - retrying authentication"
+            "ChatContext: Authentication timeout - retrying authentication explicitly"
           );
-          socket.authenticate();
+          // Try to authenticate again with the correct format
+          const success = socket.authenticate();
+          console.log("Authentication retry success:", success);
         }
-      }, 2000);
+      }, 3000);
     }
 
     // Clean up event listeners and timeout
@@ -440,149 +454,102 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
   const sendMessage = async (content: string) => {
     if (!user) {
-      console.error("Cannot send message: User not authenticated");
       toast({
-        title: "Authentication Error",
-        description: "Please log in to send messages.",
+        title: "Error",
+        description: "You need to be logged in to send messages",
         variant: "destructive",
       });
       return;
     }
 
-    if (!isConnected) {
+    if (!socket.connected) {
       console.error("Cannot send message: Socket not connected");
+
+      // Try to reconnect
+      reconnectSocket();
+
       toast({
         title: "Connection Error",
-        description: "Please wait while we reconnect to the server.",
+        description: "Reconnecting to server...",
         variant: "destructive",
       });
-      // Attempt to reconnect
+      return;
+    }
+
+    // Create message data based on current conversation
+    const messageData: any = { content };
+
+    if (currentChannel) {
+      messageData.channelId = currentChannel.id;
+    } else if (currentDirectMessage) {
+      messageData.directMessageId = currentDirectMessage.id;
+    } else {
+      console.error("No active conversation to send message to");
+      return;
+    }
+
+    // Add optimistic message to UI
+    const optimisticMessage: ExtendedMessage = {
+      id: -1, // Temporary ID
+      content,
+      userId: user.id,
+      channelId: currentChannel?.id || null,
+      directMessageId: currentDirectMessage?.id || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        status: user.status,
+        avatarUrl: user.avatarUrl || null,
+        email: user.email || "",
+        password: "", // We don't have access to the password, but it's required by the type
+      },
+      _isOptimistic: true,
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // Send via WebSocket
+    console.log("Sending message via socket:", messageData);
+    const sent = socket.send("message", messageData);
+
+    if (!sent) {
+      console.error("Failed to send message via WebSocket");
+
+      // If WebSocket send failed, try HTTP fallback
       try {
-        console.log("Attempting to reconnect socket for user:", user.id);
-        socket.connect(String(user.id));
-      } catch (error) {
-        console.error("Failed to reconnect:", error);
-      }
-      return;
-    }
+        const endpoint = currentChannel
+          ? `/api/channels/${currentChannel.id}/messages`
+          : `/api/direct-messages/${currentDirectMessage?.id}/messages`;
 
-    if (!isAuthenticated) {
-      console.error("Cannot send message: Socket not authenticated");
-      toast({
-        title: "Authentication Error",
-        description: "Please wait while we authenticate your connection.",
-        variant: "destructive",
-      });
-      // Attempt to re-authenticate
-      try {
-        console.log("Attempting to re-authenticate socket for user:", user.id);
-        socket.authenticate();
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content }),
+        });
 
-        // Give some time for authentication to complete
-        setTimeout(() => {
-          if (!isAuthenticated) {
-            console.log(
-              "Authentication timeout - please try sending your message again"
-            );
-          }
-        }, 2000);
-      } catch (error) {
-        console.error("Failed to re-authenticate:", error);
-      }
-      return;
-    }
-
-    if (!currentChannel && !currentDirectMessage) {
-      console.error("Cannot send message: No active channel or direct message");
-      toast({
-        title: "No Active Conversation",
-        description: "Please select a channel or direct message to send to.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Create message object
-      const messageData = {
-        content,
-        userId: user.id,
-        ...(currentChannel && { channelId: currentChannel.id }),
-        ...(currentDirectMessage && {
-          directMessageId: currentDirectMessage.id,
-        }),
-      };
-
-      console.log("Sending message:", messageData);
-
-      // Create a client-side ID to track this message
-      const clientMessageId = Date.now();
-
-      // Create an optimistic message for immediate UI feedback
-      const optimisticMessage: ExtendedMessage = {
-        id: clientMessageId,
-        content,
-        channelId: currentChannel?.id || null,
-        directMessageId: currentDirectMessage?.id || null,
-        userId: user.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        user: {
-          id: user.id,
-          username: user.username,
-          displayName: user.displayName,
-          status: user.status,
-          avatarUrl: user.avatarUrl || null,
-        },
-        _isOptimistic: true,
-      };
-
-      // Add to messages with special handling to avoid duplicates
-      setMessages((prev) => {
-        // Only add if it doesn't exist yet (prevent duplicates)
-        const exists = prev.some(
-          (msg) =>
-            msg._isOptimistic &&
-            msg.content === content &&
-            new Date(msg.createdAt).getTime() > Date.now() - 5000
-        );
-
-        if (exists) {
-          return prev; // Don't add duplicate optimistic messages
+        if (!response.ok) {
+          throw new Error("Failed to send message via HTTP");
         }
 
-        const newMessages = [...prev, optimisticMessage];
-        // Sort messages by date ascending (oldest first)
-        return newMessages.sort((a, b) => {
-          return (
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
-        });
-      });
+        // Successfully sent via HTTP
+        console.log("Message sent via HTTP fallback");
+      } catch (error) {
+        console.error("Error sending message:", error);
 
-      // Send via Socket
-      const success = socket.send("message", {
-        ...messageData,
-        clientMessageId,
-      });
-
-      if (!success) {
-        // Remove optimistic message on failure
-        setMessages((prev) => prev.filter((msg) => msg.id !== clientMessageId));
+        // Remove optimistic message if both methods failed
+        setMessages((prev) => prev.filter((msg) => msg !== optimisticMessage));
 
         toast({
-          title: "Failed to send message",
-          description: "Could not send message. Please try again.",
+          title: "Error",
+          description: "Failed to send message. Please try again.",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Failed to send message",
-        description: "An error occurred while sending your message.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -734,37 +701,20 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const reconnectSocket = () => {
-    if (user) {
-      console.log("Manually reconnecting socket for user:", user.id);
-      setIsConnected(false);
-      setIsAuthenticated(false);
-
-      // Force disconnect then reconnect
-      socket.disconnect();
-
-      // Wait a bit then reconnect
-      setTimeout(() => {
-        toast({
-          title: "Reconnecting",
-          description: "Attempting to reconnect to the server...",
-        });
-        socket.connect(String(user.id));
-
-        // Wait a bit more then authenticate
-        setTimeout(() => {
-          if (isConnected && !isAuthenticated) {
-            console.log("Authenticating after manual reconnect");
-            socket.authenticate();
-          }
-        }, 1000);
-      }, 500);
-    } else {
-      toast({
-        title: "Authentication Error",
-        description: "You must be logged in to connect.",
-        variant: "destructive",
-      });
+    if (!user) {
+      console.error("Cannot reconnect socket: No user available");
+      return;
     }
+
+    console.log("Attempting to reconnect socket for user:", user.id);
+
+    // First disconnect if already connected
+    socket.disconnect();
+
+    // Then connect again
+    setTimeout(() => {
+      socket.connect(String(user.id));
+    }, 500);
   };
 
   const hasNewMessages = !!messages.find((m) => m._isOptimistic);
@@ -828,9 +778,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         channels,
         activeDM: currentDirectMessage,
         directMessages,
+        activeChat: currentChannel || currentDirectMessage,
         messages: messages as MessageWithUser[],
         isLoadingMessages,
         isConnected,
+        isLoading,
+        error,
         setActiveWorkspace,
         setActiveChannel,
         setActiveDM: setActiveDM as (dm: DirectMessage | null) => void,
@@ -841,8 +794,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         refreshChannels,
         reconnectSocket,
         hasNewMessages,
-        isLoading,
-        error,
         createDirectMessage,
       }}
     >

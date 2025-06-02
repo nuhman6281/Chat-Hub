@@ -29,9 +29,23 @@ export async function setupVite(app: Express, server: Server) {
   }
 
   const serverOptions = {
-    middlewareMode: true,
+    middlewareMode: true as const,
     hmr: { server },
-    allowedHosts: true as true,
+    appType: "custom" as const,
+    server: {
+      hmr: {
+        port: 3002,
+      },
+    },
+    optimizeDeps: {
+      force: true,
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(process.cwd(), "client", "src"),
+        "@shared": path.resolve(process.cwd(), "shared"),
+      },
+    },
   };
 
   const vite = await createViteServer({
@@ -41,11 +55,13 @@ export async function setupVite(app: Express, server: Server) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        // Don't exit on error during development
+        if (process.env.NODE_ENV !== "development") {
+          process.exit(1);
+        }
       },
     },
     server: serverOptions,
-    appType: "custom",
   });
 
   app.use(vite.middlewares);

@@ -10,6 +10,7 @@ import HomePage from "./pages/Home";
 import AuthPage from "./pages/auth-page";
 import InvitePage from "./pages/InvitePage";
 import TestDemo from "./pages/TestDemo";
+import TestPage from "./pages/TestPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { CallProvider } from "./contexts/CallContext";
@@ -50,6 +51,7 @@ function App() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/invite/:token" element={<InvitePage />} />
               <Route path="/demo" element={<TestDemo />} />
+              <Route path="/test-page" element={<TestPage />} />
 
               {/* Chat routes with persistent URLs */}
               <Route
