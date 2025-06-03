@@ -333,7 +333,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unsubscribeCallEnded();
       unsubscribeCallRinging();
     };
-  }, [isConnected, activeChannel, activeDM, on]);
+  }, [isConnected, activeChannel, activeDM]);
   
   // API calls
   const fetchWorkspaces = async () => {
