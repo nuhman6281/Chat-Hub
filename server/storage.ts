@@ -315,7 +315,23 @@ export class MemStorage implements IStorage {
         if (!user) {
           throw new Error(`User with id ${message.userId} not found`);
         }
-        return { ...message, user };
+        return {
+          id: message.id,
+          content: message.content,
+          userId: message.userId,
+          channelId: message.channelId,
+          directMessageId: message.directMessageId,
+          createdAt: message.createdAt,
+          messageType: message.messageType,
+          mediaUrl: message.mediaUrl,
+          mediaType: message.mediaType,
+          mediaSize: message.mediaSize,
+          replyToId: message.replyToId,
+          isEdited: message.isEdited,
+          editedAt: message.editedAt,
+          reactions: message.reactions,
+          user
+        };
       })
     );
   }

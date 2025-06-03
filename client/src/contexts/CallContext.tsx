@@ -4,14 +4,8 @@ import { useChat } from '@/contexts/ChatContext';
 import { useSocket } from '@/lib/socket';
 import { useToast } from '@/hooks/use-toast';
 
-// Simple-peer is used for WebRTC connections
-// We need to import it this way because it's a CommonJS module
-let Peer: any;
-if (typeof window !== 'undefined') {
-  import('simple-peer').then(module => {
-    Peer = module.default;
-  });
-}
+// WebRTC functionality temporarily disabled
+// Will be re-implemented with native WebRTC APIs
 
 export type CallType = 'audio' | 'video';
 
