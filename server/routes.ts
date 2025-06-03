@@ -502,6 +502,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a message in a channel
+  app.post('/api/channels/:id/messages', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      const { content } = req.body;
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: 'Message content is required' });
+      }
+      
+      // Get the channel
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
+        return res.status(404).json({ message: 'Channel not found' });
+      }
+      
+      // Check if user is a member of the channel
+      const isMember = await storage.isUserInChannel(userId, channelId);
+      if (!isMember) {
+        return res.status(403).json({ message: 'You are not a member of this channel' });
+      }
+      
+      // Create the message
+      const message = await storage.createMessage({
+        content: content.trim(),
+        userId,
+        channelId
+      });
+      
+      // Broadcast to channel members via WebSocket
+      broadcastToChannel(channelId, {
+        type: 'new_message',
+        message
+      });
+      
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error creating channel message:', error);
+      res.status(500).json({ message: 'Failed to create message' });
+    }
+  });
+
   // Direct Messages
   app.post('/api/direct-messages', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
