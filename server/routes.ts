@@ -710,7 +710,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if the target user is a member of the workspace
       const isTargetInWorkspace = await storage.isUserInWorkspace(targetUserId, channel.workspaceId);
       if (!isTargetInWorkspace) {
-        return res.status(400).json({ message: 'User is not a member of this workspace' });
+        // Automatically add user to workspace when adding to channel
+        await storage.addWorkspaceMember({
+          workspaceId: channel.workspaceId,
+          userId: targetUserId,
+          role: 'member'
+        });
       }
       
       // Add member to channel

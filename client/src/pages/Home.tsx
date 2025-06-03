@@ -84,6 +84,7 @@ export default function Home() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showInviteUser, setShowInviteUser] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [showInviteToWorkspace, setShowInviteToWorkspace] = useState(false);
 
   // Form hooks
   const workspaceForm = useForm<CreateWorkspaceValues>({
@@ -476,35 +477,34 @@ export default function Home() {
                 </Button>
                 
                 {/* User Management Buttons */}
-                {activeChannel && (
-                  <>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setShowInviteUser(true)}
-                      title="Invite user to channel"
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setShowCreateUser(true)}
-                      title="Create new user"
-                    >
-                      <User className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setShowCreateUser(true)}
+                  title="Create new user"
+                >
+                  <User className="h-4 w-4" />
+                </Button>
                 
-                {activeWorkspace && !activeChannel && (
+                {activeChannel && (
                   <Button 
                     variant="ghost" 
                     size="icon"
                     onClick={() => setShowInviteUser(true)}
-                    title="Invite user to workspace"
+                    title="Invite user to channel"
                   >
                     <Users className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                {activeWorkspace && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setShowInviteToWorkspace(true)}
+                    title="Invite user to workspace"
+                  >
+                    <Plus className="h-4 w-4" />
                   </Button>
                 )}
               </>
@@ -568,9 +568,17 @@ export default function Home() {
       <InviteUserDialog
         isOpen={showInviteUser}
         onClose={() => setShowInviteUser(false)}
-        targetType={activeChannel ? 'channel' : 'workspace'}
-        targetId={activeChannel ? activeChannel.id : (activeWorkspace?.id || 1)}
-        targetName={activeChannel ? activeChannel.name : (activeWorkspace?.name || 'Workspace')}
+        targetType="channel"
+        targetId={activeChannel?.id || 1}
+        targetName={activeChannel?.name || 'Channel'}
+      />
+      
+      <InviteUserDialog
+        isOpen={showInviteToWorkspace}
+        onClose={() => setShowInviteToWorkspace(false)}
+        targetType="workspace"
+        targetId={activeWorkspace?.id || 1}
+        targetName={activeWorkspace?.name || 'Workspace'}
       />
       
       <CreateUserDialog
