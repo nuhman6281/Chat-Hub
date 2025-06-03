@@ -159,7 +159,8 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       status: 'online',
-      avatarUrl: null
+      avatarUrl: null,
+      publicKey: null
     };
     this.users.set(id, user);
     return user;
@@ -169,6 +170,15 @@ export class MemStorage implements IStorage {
     const user = this.users.get(id);
     if (user) {
       user.status = status;
+      return user;
+    }
+    return undefined;
+  }
+
+  async updateUserPublicKey(id: number, publicKey: string): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (user) {
+      user.publicKey = publicKey;
       return user;
     }
     return undefined;
@@ -242,7 +252,11 @@ export class MemStorage implements IStorage {
       replyToId: insertMessage.replyToId || null,
       isEdited: false,
       editedAt: null,
-      reactions: null
+      reactions: null,
+      isEncrypted: insertMessage.isEncrypted || false,
+      encryptedContent: insertMessage.encryptedContent || null,
+      nonce: insertMessage.nonce || null,
+      senderPublicKey: insertMessage.senderPublicKey || null
     };
     
     this.messages.set(id, message);
@@ -267,6 +281,10 @@ export class MemStorage implements IStorage {
       isEdited: message.isEdited,
       editedAt: message.editedAt,
       reactions: message.reactions,
+      isEncrypted: message.isEncrypted,
+      encryptedContent: message.encryptedContent,
+      nonce: message.nonce,
+      senderPublicKey: message.senderPublicKey,
       user
     };
   }
@@ -297,6 +315,10 @@ export class MemStorage implements IStorage {
           isEdited: message.isEdited,
           editedAt: message.editedAt,
           reactions: message.reactions,
+          isEncrypted: message.isEncrypted,
+          encryptedContent: message.encryptedContent,
+          nonce: message.nonce,
+          senderPublicKey: message.senderPublicKey,
           user
         };
       })
@@ -329,6 +351,10 @@ export class MemStorage implements IStorage {
           isEdited: message.isEdited,
           editedAt: message.editedAt,
           reactions: message.reactions,
+          isEncrypted: message.isEncrypted,
+          encryptedContent: message.encryptedContent,
+          nonce: message.nonce,
+          senderPublicKey: message.senderPublicKey,
           user
         };
       })
@@ -390,6 +416,10 @@ export class MemStorage implements IStorage {
               isEdited: lastMessage.isEdited,
               editedAt: lastMessage.editedAt,
               reactions: lastMessage.reactions,
+              isEncrypted: lastMessage.isEncrypted,
+              encryptedContent: lastMessage.encryptedContent,
+              nonce: lastMessage.nonce,
+              senderPublicKey: lastMessage.senderPublicKey,
               user: lastMessageUser
             };
           }
