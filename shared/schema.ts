@@ -315,3 +315,67 @@ export const insertUserStatusSchema = createInsertSchema(userStatus).pick({
 
 export type InsertUserStatus = z.infer<typeof insertUserStatusSchema>;
 export type UserStatus = typeof userStatus.$inferSelect;
+
+// Message Reactions table
+export const messageReactions = pgTable("message_reactions", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull(),
+  userId: integer("user_id").notNull(),
+  emoji: text("emoji").notNull(), // The emoji used for reaction
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMessageReactionSchema = createInsertSchema(messageReactions).pick({
+  messageId: true,
+  userId: true,
+  emoji: true,
+});
+
+export type InsertMessageReaction = z.infer<typeof insertMessageReactionSchema>;
+export type MessageReaction = typeof messageReactions.$inferSelect;
+
+// Message reactions relations
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageReactions.messageId],
+    references: [messages.id]
+  }),
+  user: one(users, {
+    fields: [messageReactions.userId],
+    references: [users.id]
+  })
+}));
+
+// File uploads table for media sharing
+export const fileUploads = pgTable("file_uploads", {
+  id: serial("id").primaryKey(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(), // file size in bytes
+  uploadedBy: integer("uploaded_by").notNull(),
+  url: text("url").notNull(), // Storage URL or path
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFileUploadSchema = createInsertSchema(fileUploads).pick({
+  filename: true,
+  originalName: true,
+  mimeType: true,
+  size: true,
+  uploadedBy: true,
+  url: true,
+  isPublic: true,
+});
+
+export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
+export type FileUpload = typeof fileUploads.$inferSelect;
+
+// File upload relations
+export const fileUploadsRelations = relations(fileUploads, ({ one }) => ({
+  uploader: one(users, {
+    fields: [fileUploads.uploadedBy],
+    references: [users.id]
+  })
+}));

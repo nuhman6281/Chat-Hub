@@ -538,6 +538,15 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async updateUserPublicKey(id: number, publicKey: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ publicKey })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
   async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
     const [workspace] = await db
       .insert(workspaces)
@@ -750,7 +759,7 @@ export class DatabaseStorage implements IStorage {
 }
 
 // Force use of in-memory storage for stability
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
 console.log('Using MemStorage for complete in-memory operation');
 
 // Completely disable DatabaseStorage to prevent any database connections
