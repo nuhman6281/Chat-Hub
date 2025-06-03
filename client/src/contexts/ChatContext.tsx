@@ -147,13 +147,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isConnected) return;
     
-    const handleNewMessage = (message: Message) => {
+    const handleNewMessage = (payload: any) => {
+      console.log('Received new message:', payload);
+      const message = payload.message || payload;
+      
       // Only add message if it belongs to the active conversation
       if (
         (activeChannel && message.channelId === activeChannel.id) ||
         (activeDM && message.directMessageId === activeDM.id)
       ) {
-        setMessages(prev => [message, ...prev]);
+        setMessages(prev => [...prev, message]);
+        console.log('Added message to active conversation');
       }
       
       // Update last message in direct messages list
