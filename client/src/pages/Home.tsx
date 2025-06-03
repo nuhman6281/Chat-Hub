@@ -368,7 +368,7 @@ export default function Home() {
               </TabsContent>
               
               <TabsContent value="direct" className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-4 py-2">
+                <div className="px-4 pt-2 pb-1">
                   <span className="text-xs font-medium text-muted-foreground">DIRECT MESSAGES</span>
                 </div>
                 
