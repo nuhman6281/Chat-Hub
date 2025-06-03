@@ -110,13 +110,10 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await logoutMutation.mutateAsync();
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive",
-      });
+      // Error handling is already done in the mutation
+      console.error('Logout error:', error);
     }
   };
 
