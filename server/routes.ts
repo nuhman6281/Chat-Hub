@@ -456,10 +456,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/workspaces', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
+      console.log('Fetching workspaces for user:', userId);
       const workspaces = await storage.getWorkspacesByUserId(userId);
+      console.log('Found workspaces:', workspaces);
       res.json(workspaces);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch workspaces' });
+      console.error('Workspaces API error:', error);
+      res.status(500).json({ message: 'Failed to fetch workspaces', error: error.message });
     }
   });
 

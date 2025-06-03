@@ -142,6 +142,35 @@ export function setupAuth(app: Express) {
         avatarUrl: null // Explicitly set to null
       });
 
+      // Create a default workspace for the new user
+      const workspace = await storage.createWorkspace({
+        name: `${displayName}'s Workspace`,
+        ownerId: user.id,
+        iconText: displayName.charAt(0).toUpperCase(),
+        iconColor: "#3b82f6"
+      });
+
+      // Add user as admin to their workspace
+      await storage.addWorkspaceMember({
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: 'admin'
+      });
+
+      // Create a general channel in the workspace
+      const channel = await storage.createChannel({
+        name: "general",
+        workspaceId: workspace.id,
+        createdBy: user.id,
+        isPrivate: false
+      });
+
+      // Add user to the general channel
+      await storage.addChannelMember({
+        channelId: channel.id,
+        userId: user.id
+      });
+
       // Ensure avatarUrl is properly set to null if undefined
       const sanitizedUser = {
         ...user,
