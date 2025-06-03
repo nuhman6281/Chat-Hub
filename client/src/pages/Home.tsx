@@ -39,6 +39,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import EnhancedMessageInput from '@/components/chat/EnhancedMessageInput';
+import { InviteUserDialog } from '@/components/InviteUserDialog';
+import { CreateUserDialog } from '@/components/CreateUserDialog';
 
 // Create workspace/channel form schemas
 const createWorkspaceSchema = z.object({
@@ -55,7 +57,7 @@ type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const { 
     workspaces, 
     activeWorkspace, 
@@ -63,17 +65,17 @@ export default function Home() {
     channels, 
     activeChannel, 
     setActiveChannel,
-    directMessages,
-    activeDirectMessage,
-    setActiveDirectMessage,
+    directMessages = [],
+    activeDirectMessage = null,
+    setActiveDirectMessage = () => {},
     messages, 
     sendMessage, 
     isConnected,
-    connectionStatus,
+    connectionStatus = 'connected',
     createWorkspace,
     createChannel
   } = useChat();
-  const { isCallActive } = useCall();
+  const { initiateCall, isInitiating } = useCall();
   const { toast } = useToast();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -454,12 +456,49 @@ export default function Home() {
           <div className="ml-auto flex items-center gap-2">
             {(activeChannel || activeDirectMessage) && (
               <>
-                <Button variant="ghost" size="icon">
-                  <Phone className="h-4 w-4" />
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => initiateCall(1, 'audio')}
+                  disabled={isInitiating}
+                >
+                  {isInitiating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
                 </Button>
-                <Button variant="ghost" size="icon">
-                  <Video className="h-4 w-4" />
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => initiateCall(1, 'video')}
+                  disabled={isInitiating}
+                >
+                  {isInitiating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
                 </Button>
+                
+                {/* User Invitation Buttons */}
+                {activeChannel && (
+                  <>
+                    <InviteUserDialog
+                      isOpen={false}
+                      onClose={() => {}}
+                      targetType="channel"
+                      targetId={activeChannel.id}
+                      targetName={activeChannel.name}
+                    />
+                    <CreateUserDialog
+                      isOpen={false}
+                      onClose={() => {}}
+                    />
+                  </>
+                )}
+                
+                {activeWorkspace && (
+                  <InviteUserDialog
+                    isOpen={false}
+                    onClose={() => {}}
+                    targetType="workspace"
+                    targetId={activeWorkspace.id}
+                    targetName={activeWorkspace.name}
+                  />
+                )}
               </>
             )}
           </div>

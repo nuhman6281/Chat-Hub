@@ -48,7 +48,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // State
+  // Call state
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiating, setIsInitiating] = useState(false);
   const [callType, setCallType] = useState<CallType | null>(null);
@@ -61,59 +61,140 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<{ from: CallParticipant; type: CallType } | null>(null);
 
   const initiateCall = async (targetUserId: number, type: CallType) => {
-    if (!user) return;
-    
-    setIsInitiating(true);
-    
-    // Show placeholder notification
-    toast({
-      title: "Call Feature Coming Soon",
-      description: "Voice and video calls will be available soon",
-    });
-    
-    setIsInitiating(false);
+    try {
+      setIsInitiating(true);
+      setCallType(type);
+      
+      // Get user media
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: type === 'video'
+      });
+      
+      setLocalStream(stream);
+      setIsVideoEnabled(type === 'video');
+      
+      // Make API call to initiate call
+      const response = await fetch('/api/calls/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetUserId,
+          callType: type
+        })
+      });
+      
+      if (response.ok) {
+        setIsInCall(true);
+        toast({
+          title: "Call initiated",
+          description: `${type === 'video' ? 'Video' : 'Voice'} call started`,
+        });
+      } else {
+        throw new Error('Failed to initiate call');
+      }
+    } catch (error) {
+      toast({
+        title: "Call failed",
+        description: "Unable to start call. Please check your microphone/camera permissions.",
+        variant: "destructive",
+      });
+      endCall();
+    } finally {
+      setIsInitiating(false);
+    }
   };
 
   const answerCall = async () => {
-    setShowIncomingCall(false);
-    setIncomingCall(null);
+    if (!incomingCall) return;
     
-    toast({
-      title: "Call Feature Coming Soon",
-      description: "Voice and video calls will be available soon",
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: incomingCall.type === 'video'
+      });
+      
+      setLocalStream(stream);
+      setIsInCall(true);
+      setCallType(incomingCall.type);
+      setIsVideoEnabled(incomingCall.type === 'video');
+      setShowIncomingCall(false);
+      setIncomingCall(null);
+      
+      toast({
+        title: "Call answered",
+        description: `${incomingCall.type === 'video' ? 'Video' : 'Voice'} call connected`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to answer call",
+        description: "Please check your microphone/camera permissions.",
+        variant: "destructive",
+      });
+    }
   };
 
   const endCall = () => {
+    // Stop all media tracks
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+    }
+    if (remoteStream) {
+      remoteStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Reset state
     setIsInCall(false);
+    setIsInitiating(false);
     setCallType(null);
     setParticipants([]);
     setLocalStream(null);
     setRemoteStream(null);
+    setIsMuted(false);
+    setIsVideoEnabled(true);
     setShowIncomingCall(false);
     setIncomingCall(null);
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
   };
 
   const toggleVideo = () => {
-    setIsVideoEnabled(!isVideoEnabled);
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoEnabled(videoTrack.enabled);
+      }
+    }
   };
 
   const value: CallContextType = {
+    // Call state
     isInCall,
     isInitiating,
     callType,
     participants,
     localStream,
     remoteStream,
+    
+    // Actions
     initiateCall,
     answerCall,
     endCall,
     toggleMute,
     toggleVideo,
+    
+    // UI state
     isMuted,
     isVideoEnabled,
     showIncomingCall,
