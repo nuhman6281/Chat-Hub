@@ -388,53 +388,11 @@ export default function Home() {
                       </Button>
                     ))}
                     
-                    {/* Add users section for starting new DMs */}
+                    {/* Show message when no DMs exist */}
                     {directMessages.length === 0 && (
                       <div className="px-2 py-4">
-                        <div className="text-xs text-muted-foreground mb-2">Available Users</div>
-                        <div className="space-y-1">
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-8 px-2 text-xs"
-                            onClick={async () => {
-                              console.log('Starting DM with user 4');
-                              const dm = await startDirectMessage(4);
-                              if (dm && dm.otherUser) {
-                                console.log('DM created:', dm);
-                                setActiveDM(dm);
-                                setActiveChannel(null);
-                                toast({
-                                  title: "Direct message started",
-                                  description: `Started conversation with ${dm.otherUser.displayName}`
-                                });
-                              } else {
-                                console.error('Failed to create DM or missing user data');
-                              }
-                            }}
-                          >
-                            <User className="mr-2 h-3 w-3 text-muted-foreground" />
-                            <span className="truncate">nuhman1 (User 4)</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start h-8 px-2 text-xs"
-                            onClick={async () => {
-                              console.log('Starting DM with user 1');
-                              const dm = await startDirectMessage(1);
-                              if (dm) {
-                                console.log('DM created:', dm);
-                                setActiveDM(dm);
-                                setActiveChannel(null);
-                                toast({
-                                  title: "Direct message started",
-                                  description: `Started conversation with ${dm.otherUser.displayName}`
-                                });
-                              }
-                            }}
-                          >
-                            <User className="mr-2 h-3 w-3 text-muted-foreground" />
-                            <span className="truncate">Test User (User 1)</span>
-                          </Button>
+                        <div className="text-xs text-muted-foreground text-center">
+                          No direct messages yet
                         </div>
                       </div>
                     )}
