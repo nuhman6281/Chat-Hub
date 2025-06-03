@@ -126,7 +126,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
 
             // Broadcast to all clients in the channel
-            broadcastToChannel(data.channelId, message);
+            broadcastToChannel(data.channelId, {
+              type: 'new_message',
+              payload: message
+            });
             
             // Send confirmation back to sender
             ws.send(JSON.stringify({ 
@@ -152,7 +155,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
 
             // Send to both participants
-            broadcastToDirectMessage(data.directMessageId, message);
+            broadcastToDirectMessage(data.directMessageId, {
+              type: 'new_message',
+              payload: message
+            });
             
             // Send confirmation back to sender
             ws.send(JSON.stringify({ 
@@ -236,12 +242,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         memberIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN
       ).length;
       
-      // Prepare message payload
+      // Prepare message payload with correct format expected by client
       const message = {
-        type: data.type || 'message',
-        data,
-        timestamp: new Date().toISOString(),
-        channelId
+        type: data.type,
+        payload: data.payload
       };
       
       const messageStr = JSON.stringify(message);
@@ -274,12 +278,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eligibleUserIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN
         ).length;
         
-        // Prepare message payload
+        // Prepare message payload with correct format expected by client
         const message = {
-          type: data.type || 'message',
-          data,
-          timestamp: new Date().toISOString(),
-          directMessageId
+          type: data.type,
+          payload: data.payload
         };
         
         const messageStr = JSON.stringify(message);
