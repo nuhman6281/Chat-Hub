@@ -198,7 +198,8 @@ export function setupAuth(app: Express) {
       // Ensure avatarUrl is properly set to either string or null
       const sanitizedUser = {
         ...user,
-        avatarUrl: user.avatarUrl || null
+        avatarUrl: user.avatarUrl || null,
+        publicKey: user.publicKey || null
       };
       
       req.login(sanitizedUser, (err) => {

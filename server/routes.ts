@@ -334,6 +334,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
+  // Public key registration endpoint for encryption
+  app.post('/api/users/public-key', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { publicKey } = req.body;
+      
+      if (!publicKey || typeof publicKey !== 'string') {
+        return res.status(400).json({ message: 'Public key is required' });
+      }
+      
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const updatedUser = await storage.updateUserPublicKey(user.id, publicKey);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      res.json({ 
+        message: 'Public key registered successfully',
+        publicKey: updatedUser.publicKey
+      });
+    } catch (error) {
+      console.error('Error registering public key:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
   // Demo mode endpoints (only for development)
   app.get('/api/demo/status', (req: Request, res: Response) => {
     const isDevelopment = process.env.NODE_ENV === 'development';

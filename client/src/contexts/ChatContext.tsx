@@ -98,7 +98,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       // Initialize encryption keys for the user
-      encryptionService.getOrCreateKeyPair();
+      const userKeys = encryptionService.getOrCreateKeyPair();
+      
+      // Register the public key with the server
+      fetch('/api/users/public-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          publicKey: userKeys.publicKeyString
+        })
+      }).catch(error => {
+        console.error('Failed to register public key:', error);
+      });
+      
       fetchWorkspaces();
     } else {
       setWorkspaces([]);
