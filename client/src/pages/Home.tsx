@@ -16,7 +16,7 @@ import { useChat } from '@/contexts/ChatContext';
 import { useCall } from '@/contexts/CallContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Menu, Send, Plus, Hash, LogOut, User, Users, MessageSquare, Phone, Video } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area-fixed';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   DropdownMenu, 
