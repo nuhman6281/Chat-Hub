@@ -1,0 +1,153 @@
+client:495 [vite] connecting...
+index.iife.js:1347 content script loaded
+index.iife.js:1 initial theme: light
+Home.tsx:169 Uncaught ReferenceError: connectionStatus is not defined
+    at getStatusColor (Home.tsx:169:7)
+    at renderConnectionStatus (Home.tsx:188:52)
+    at Home (Home.tsx:424:12)
+    at renderWithHooks (chunk-UZOKQUDP.js?v=038327ab:11548:26)
+    at updateFunctionComponent (chunk-UZOKQUDP.js?v=038327ab:14582:28)
+    at mountLazyComponent (chunk-UZOKQUDP.js?v=038327ab:14833:23)
+    at beginWork (chunk-UZOKQUDP.js?v=038327ab:15918:22)
+    at HTMLUnknownElement.callCallback2 (chunk-UZOKQUDP.js?v=038327ab:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-UZOKQUDP.js?v=038327ab:3699:24)
+    at invokeGuardedCallback (chunk-UZOKQUDP.js?v=038327ab:3733:39)
+getStatusColor @ Home.tsx:169
+renderConnectionStatus @ Home.tsx:188
+Home @ Home.tsx:424
+renderWithHooks @ chunk-UZOKQUDP.js?v=038327ab:11548
+updateFunctionComponent @ chunk-UZOKQUDP.js?v=038327ab:14582
+mountLazyComponent @ chunk-UZOKQUDP.js?v=038327ab:14833
+beginWork @ chunk-UZOKQUDP.js?v=038327ab:15918
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+beginWork$1 @ chunk-UZOKQUDP.js?v=038327ab:19765
+performUnitOfWork @ chunk-UZOKQUDP.js?v=038327ab:19198
+workLoopConcurrent @ chunk-UZOKQUDP.js?v=038327ab:19189
+renderRootConcurrent @ chunk-UZOKQUDP.js?v=038327ab:19164
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18678
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+Home.tsx:169 Uncaught ReferenceError: connectionStatus is not defined
+    at getStatusColor (Home.tsx:169:7)
+    at renderConnectionStatus (Home.tsx:188:52)
+    at Home (Home.tsx:424:12)
+    at renderWithHooks (chunk-UZOKQUDP.js?v=038327ab:11548:26)
+    at updateFunctionComponent (chunk-UZOKQUDP.js?v=038327ab:14582:28)
+    at mountLazyComponent (chunk-UZOKQUDP.js?v=038327ab:14833:23)
+    at beginWork (chunk-UZOKQUDP.js?v=038327ab:15918:22)
+    at HTMLUnknownElement.callCallback2 (chunk-UZOKQUDP.js?v=038327ab:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-UZOKQUDP.js?v=038327ab:3699:24)
+    at invokeGuardedCallback (chunk-UZOKQUDP.js?v=038327ab:3733:39)
+getStatusColor @ Home.tsx:169
+renderConnectionStatus @ Home.tsx:188
+Home @ Home.tsx:424
+renderWithHooks @ chunk-UZOKQUDP.js?v=038327ab:11548
+updateFunctionComponent @ chunk-UZOKQUDP.js?v=038327ab:14582
+mountLazyComponent @ chunk-UZOKQUDP.js?v=038327ab:14833
+beginWork @ chunk-UZOKQUDP.js?v=038327ab:15918
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+beginWork$1 @ chunk-UZOKQUDP.js?v=038327ab:19765
+performUnitOfWork @ chunk-UZOKQUDP.js?v=038327ab:19198
+workLoopSync @ chunk-UZOKQUDP.js?v=038327ab:19137
+renderRootSync @ chunk-UZOKQUDP.js?v=038327ab:19116
+recoverFromConcurrentError @ chunk-UZOKQUDP.js?v=038327ab:18736
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18684
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+hook.js:608 The above error occurred in the <Home> component:
+
+    at Home (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/pages/Home.tsx:55:20)
+    at Route (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=038327ab:323:16)
+    at ProtectedRoute (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/lib/protected-route.tsx:21:34)
+    at Switch (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=038327ab:379:17)
+    at Suspense
+    at Router
+    at Provider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HYZ6UR5K.js?v=038327ab:38:15)
+    at TooltipProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=038327ab:60:5)
+    at CallProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/CallContext.tsx:31:32)
+    at ChatProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/ChatContext.tsx:24:32)
+    at AuthProviderInner (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/AuthWrapper.tsx:22:30)
+    at AuthProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/AuthWrapper.tsx:187:32)
+    at QueryClientProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=038327ab:2805:3)
+    at App
+    at ThemeProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/ThemeContext.tsx?v=K68aVdWj_Ia4F7X1CprxO:24:33)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+overrideMethod @ hook.js:608
+logCapturedError @ chunk-UZOKQUDP.js?v=038327ab:14032
+update.callback @ chunk-UZOKQUDP.js?v=038327ab:14052
+callCallback @ chunk-UZOKQUDP.js?v=038327ab:11248
+commitUpdateQueue @ chunk-UZOKQUDP.js?v=038327ab:11265
+commitLayoutEffectOnFiber @ chunk-UZOKQUDP.js?v=038327ab:17093
+commitLayoutMountEffects_complete @ chunk-UZOKQUDP.js?v=038327ab:17980
+commitLayoutEffects_begin @ chunk-UZOKQUDP.js?v=038327ab:17969
+commitLayoutEffects @ chunk-UZOKQUDP.js?v=038327ab:17920
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19353
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+finishConcurrentRender @ chunk-UZOKQUDP.js?v=038327ab:18760
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18718
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+chunk-UZOKQUDP.js?v=038327ab:19413 Uncaught ReferenceError: connectionStatus is not defined
+    at getStatusColor (Home.tsx:169:7)
+    at renderConnectionStatus (Home.tsx:188:52)
+    at Home (Home.tsx:424:12)
+    at renderWithHooks (chunk-UZOKQUDP.js?v=038327ab:11548:26)
+    at updateFunctionComponent (chunk-UZOKQUDP.js?v=038327ab:14582:28)
+    at mountLazyComponent (chunk-UZOKQUDP.js?v=038327ab:14833:23)
+    at beginWork (chunk-UZOKQUDP.js?v=038327ab:15918:22)
+    at beginWork$1 (chunk-UZOKQUDP.js?v=038327ab:19753:22)
+    at performUnitOfWork (chunk-UZOKQUDP.js?v=038327ab:19198:20)
+    at workLoopSync (chunk-UZOKQUDP.js?v=038327ab:19137:13)
+getStatusColor @ Home.tsx:169
+renderConnectionStatus @ Home.tsx:188
+Home @ Home.tsx:424
+renderWithHooks @ chunk-UZOKQUDP.js?v=038327ab:11548
+updateFunctionComponent @ chunk-UZOKQUDP.js?v=038327ab:14582
+mountLazyComponent @ chunk-UZOKQUDP.js?v=038327ab:14833
+beginWork @ chunk-UZOKQUDP.js?v=038327ab:15918
+beginWork$1 @ chunk-UZOKQUDP.js?v=038327ab:19753
+performUnitOfWork @ chunk-UZOKQUDP.js?v=038327ab:19198
+workLoopSync @ chunk-UZOKQUDP.js?v=038327ab:19137
+renderRootSync @ chunk-UZOKQUDP.js?v=038327ab:19116
+recoverFromConcurrentError @ chunk-UZOKQUDP.js?v=038327ab:18736
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18684
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+socket.ts:96 WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/ws' failed: WebSocket is closed before the connection is established.
+(anonymous) @ socket.ts:96
+safelyCallDestroy @ chunk-UZOKQUDP.js?v=038327ab:16748
+commitHookEffectListUnmount @ chunk-UZOKQUDP.js?v=038327ab:16875
+commitPassiveUnmountInsideDeletedTreeOnFiber @ chunk-UZOKQUDP.js?v=038327ab:18283
+commitPassiveUnmountEffectsInsideOfDeletedTree_begin @ chunk-UZOKQUDP.js?v=038327ab:18245
+commitPassiveUnmountEffects_begin @ chunk-UZOKQUDP.js?v=038327ab:18181
+commitPassiveUnmountEffects @ chunk-UZOKQUDP.js?v=038327ab:18169
+flushPassiveEffectsImpl @ chunk-UZOKQUDP.js?v=038327ab:19489
+flushPassiveEffects @ chunk-UZOKQUDP.js?v=038327ab:19447
+performSyncWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18868
+flushSyncCallbacks @ chunk-UZOKQUDP.js?v=038327ab:9119
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:18627
+socket.ts:77 WebSocket error: Event {isTrusted: true, type: 'error', target: WebSocket, currentTarget: WebSocket, eventPhase: 2, …}
+overrideMethod @ hook.js:608
+socketRef.current.onerror @ socket.ts:77
+socket.ts:62 WebSocket connection closed 1006 
+client:536 WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/?token=cNOJSqnR91tv' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=cNOJSqnR91tv' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+setupWebSocket @ client:536
+fallback @ client:509
+(anonymous) @ client:555
+socket.ts:41 WebSocket connection established
