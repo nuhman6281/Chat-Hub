@@ -73,12 +73,12 @@ const VideoTile = ({ participant }: { participant: CallParticipant }) => {
 
 // Incoming call dialog
 export function IncomingCallDialog() {
-  const { incomingCall, callType, callerName, answerCall, rejectCall } = useCall();
+  const { showIncomingCall, callType, callerName, answerCall, rejectCall } = useCall();
   
-  if (!incomingCall) return null;
+  if (!showIncomingCall) return null;
   
   return (
-    <Dialog open={incomingCall} onOpenChange={() => {}}>
+    <Dialog open={showIncomingCall} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Incoming {callType === 'video' ? 'Video' : 'Audio'} Call</DialogTitle>
@@ -165,12 +165,27 @@ export function ActiveCallUI() {
     participants, 
     localAudioEnabled, 
     localVideoEnabled, 
+    localStream,
+    remoteStream,
     endCall, 
-    toggleAudio, 
+    toggleMute, 
     toggleVideo 
   } = useCall();
   
   if (!activeCall) return null;
+
+  // Create local participant if we have a local stream
+  const localParticipant: CallParticipant = {
+    userId: 0, // Local user ID
+    username: 'You',
+    displayName: 'You',
+    stream: localStream || undefined,
+    audioEnabled: localAudioEnabled,
+    videoEnabled: localVideoEnabled
+  };
+
+  // Combine local and remote participants
+  const allParticipants = [localParticipant, ...participants];
   
   return (
     <Dialog open={activeCall} onOpenChange={() => {}}>
@@ -190,7 +205,7 @@ export function ActiveCallUI() {
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {participants.map(participant => (
+          {allParticipants.map(participant => (
             <VideoTile 
               key={participant.userId} 
               participant={participant} 
@@ -203,7 +218,7 @@ export function ActiveCallUI() {
             variant="outline" 
             size="icon" 
             className={`rounded-full h-10 w-10 ${!localAudioEnabled ? 'bg-red-100 text-red-500' : ''}`}
-            onClick={toggleAudio}
+            onClick={toggleMute}
           >
             {localAudioEnabled ? (
               <Mic className="h-5 w-5" />

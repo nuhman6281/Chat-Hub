@@ -235,21 +235,31 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (!incomingCall) return;
     
     try {
+      stopRingtone();
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: incomingCall.type === 'video'
+        video: callType === 'video'
       });
       
       setLocalStream(stream);
-      setIsInCall(true);
-      setCallType(incomingCall.type);
-      setIsVideoEnabled(incomingCall.type === 'video');
+      setLocalAudioEnabled(true);
+      setLocalVideoEnabled(callType === 'video');
+      setActiveCall(true);
+      setIncomingCall(false);
       setShowIncomingCall(false);
-      setIncomingCall(null);
+      
+      // Call API to accept the call
+      await fetch('/api/calls/answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       
       toast({
         title: "Call answered",
-        description: `${incomingCall.type === 'video' ? 'Video' : 'Voice'} call connected`,
+        description: `${callType === 'video' ? 'Video' : 'Voice'} call connected`,
       });
     } catch (error) {
       toast({
@@ -257,29 +267,42 @@ export function CallProvider({ children }: { children: ReactNode }) {
         description: "Please check your microphone/camera permissions.",
         variant: "destructive",
       });
+      resetCallState();
     }
   };
 
-  const endCall = () => {
-    // Stop all media tracks
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-    }
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
+  const rejectCall = async () => {
+    stopRingtone();
+    
+    try {
+      await fetch('/api/calls/hangup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+    } catch (error) {
+      console.error('Failed to reject call:', error);
     }
     
-    // Reset state
-    setIsInCall(false);
-    setIsInitiating(false);
-    setCallType(null);
-    setParticipants([]);
-    setLocalStream(null);
-    setRemoteStream(null);
-    setIsMuted(false);
-    setIsVideoEnabled(true);
-    setShowIncomingCall(false);
-    setIncomingCall(null);
+    resetCallState();
+  };
+
+  const endCall = async () => {
+    stopRingtone();
+    
+    try {
+      await fetch('/api/calls/hangup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+    } catch (error) {
+      console.error('Failed to end call:', error);
+    }
+    
+    resetCallState();
   };
 
   const toggleMute = () => {
@@ -288,6 +311,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
+        setLocalAudioEnabled(audioTrack.enabled);
       }
     }
   };
@@ -298,6 +322,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setIsVideoEnabled(videoTrack.enabled);
+        setLocalVideoEnabled(videoTrack.enabled);
       }
     }
   };
@@ -314,6 +339,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     // Actions
     initiateCall,
     answerCall,
+    rejectCall,
     endCall,
     toggleMute,
     toggleVideo,
@@ -323,6 +349,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     isVideoEnabled,
     showIncomingCall,
     incomingCall,
+    outgoingCall,
+    activeCall,
+    callerName,
+    localAudioEnabled,
+    localVideoEnabled,
   };
 
   return (
