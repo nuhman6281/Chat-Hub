@@ -39,6 +39,7 @@ export const workspaces = pgTable("workspaces", {
   name: text("name").notNull(),
   ownerId: integer("owner_id").notNull(),
   iconText: text("icon_text").notNull(),
+  iconColor: text("icon_color").default("#3b82f6"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -46,8 +47,10 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
   name: true,
   ownerId: true,
   iconText: true,
+  iconColor: true,
 }).extend({
-  iconText: z.string().optional().default("W")
+  iconText: z.string().optional().default("W"),
+  iconColor: z.string().optional().default("#3b82f6")
 });
 
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
@@ -70,6 +73,7 @@ export const channels = pgTable("channels", {
   name: text("name").notNull(),
   workspaceId: integer("workspace_id").notNull(),
   description: text("description"),
+  createdBy: integer("created_by").notNull(),
   isPrivate: boolean("is_private").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -78,6 +82,7 @@ export const insertChannelSchema = createInsertSchema(channels).pick({
   name: true,
   workspaceId: true,
   description: true,
+  createdBy: true,
   isPrivate: true,
 });
 
