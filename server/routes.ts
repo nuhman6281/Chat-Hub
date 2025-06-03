@@ -54,8 +54,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (data.type === 'auth') {
           // Authenticate the WebSocket connection
-          const userId = data.payload?.userId || data.userId;
-          if (!userId) {
+          const authUserId = data.payload?.userId || data.userId;
+          if (!authUserId) {
             ws.send(JSON.stringify({ 
               type: 'error', 
               message: 'User ID is required for authentication'
@@ -63,24 +63,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          const user = await storage.getUser(userId);
-          if (user) {
-            userId = user.id;
+          if (typeof authUserId === 'number') {
+            const user = await storage.getUser(authUserId);
+            if (user) {
+              userId = user.id;
             
-            // Remove any existing connections for this user
-            const existingIndex = clients.findIndex(client => 
-              client.userId === userId && client.ws !== ws
-            );
-            
-            if (existingIndex !== -1) {
-              console.log(`Replacing existing WebSocket for user: ${user.username}`);
-              // Don't close the old connection, just replace it in the clients array
-              clients[existingIndex].ws = ws;
-            } else {
-              clients.push({ userId: user.id, ws });
-            }
-            
-            console.log(`WebSocket authenticated for user: ${user.username}`);
+              // Remove any existing connections for this user
+              const existingIndex = clients.findIndex(client => 
+                client.userId === userId && client.ws !== ws
+              );
+              
+              if (existingIndex !== -1) {
+                console.log(`Replacing existing WebSocket for user: ${user.username}`);
+                // Don't close the old connection, just replace it in the clients array
+                clients[existingIndex].ws = ws;
+              } else {
+                clients.push({ userId: user.id, ws });
+              }
+              
+              console.log(`WebSocket authenticated for user: ${user.username}`);
             
             // Send confirmation back to the client
             ws.send(JSON.stringify({ 
@@ -90,12 +91,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               displayName: user.displayName
             }));
             
-            // Update user status to online
-            await storage.updateUserStatus(userId, "online");
+              // Update user status to online
+              await storage.updateUserStatus(userId, "online");
+            } else {
+              ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'User not found'
+              }));
+            }
           } else {
             ws.send(JSON.stringify({ 
               type: 'error', 
-              message: 'User not found'
+              message: 'Invalid user ID format'
             }));
           }
         } else if (data.type === 'message' && userId) {
