@@ -68,6 +68,7 @@ export default function Home() {
     directMessages = [],
     activeDM = null,
     setActiveDM = () => {},
+    workspaceMembers = [],
     messages, 
     sendMessage, 
     isConnected,
@@ -388,6 +389,41 @@ export default function Home() {
                       </Button>
                     ))}
                     
+                    {/* Workspace Members section for starting new DMs */}
+                    {activeWorkspace && workspaceMembers.length > 0 && (
+                      <div className="px-2 py-2">
+                        <div className="text-xs text-muted-foreground mb-2">WORKSPACE MEMBERS</div>
+                        <div className="space-y-1">
+                          {workspaceMembers
+                            .filter(member => member.user.id !== user?.id) // Don't show current user
+                            .map((member) => (
+                            <Button
+                              key={member.id}
+                              variant="ghost"
+                              className="w-full justify-start h-8 px-2 text-xs"
+                              onClick={async () => {
+                                const dm = await startDirectMessage(member.user.id);
+                                if (dm && dm.otherUser) {
+                                  setActiveDM(dm);
+                                  setActiveChannel(null);
+                                  toast({
+                                    title: "Direct message started",
+                                    description: `Started conversation with ${dm.otherUser.displayName}`
+                                  });
+                                }
+                              }}
+                            >
+                              <User className="mr-2 h-3 w-3 text-muted-foreground" />
+                              <span className="truncate">{member.user.displayName}</span>
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {member.user.status === 'online' ? '🟢' : '⚫'}
+                              </span>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Show message when no DMs exist */}
                     {directMessages.length === 0 && (
                       <div className="px-2 py-4">
