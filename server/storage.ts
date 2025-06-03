@@ -1,6 +1,6 @@
 import { 
   users, workspaces, channels, messages, directMessages, 
-  workspaceMembers, channelMembers,
+  workspaceMembers, channelMembers, messageReactions, fileUploads,
   type User, type InsertUser,
   type Workspace, type InsertWorkspace,
   type Channel, type InsertChannel,
@@ -8,7 +8,8 @@ import {
   type DirectMessage, type InsertDirectMessage, type DirectMessageWithUser,
   type WorkspaceMember, type InsertWorkspaceMember,
   type ChannelMember, type InsertChannelMember,
-  type ChannelWithMemberCount
+  type ChannelWithMemberCount, type MessageReaction, type InsertMessageReaction,
+  type FileUpload, type InsertFileUpload
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
@@ -84,6 +85,8 @@ export class MemStorage implements IStorage {
   private directMessages: Map<number, DirectMessage>;
   private workspaceMembers: Map<number, WorkspaceMember>;
   private channelMembers: Map<number, ChannelMember>;
+  private messageReactions: Map<number, MessageReaction>;
+  private fileUploads: Map<number, FileUpload>;
 
   private userId: number = 1;
   private workspaceId: number = 1;
@@ -92,6 +95,8 @@ export class MemStorage implements IStorage {
   private directMessageId: number = 1;
   private workspaceMemberId: number = 1;
   private channelMemberId: number = 1;
+  private messageReactionId: number = 1;
+  private fileUploadId: number = 1;
 
   sessionStore: any;
 
@@ -103,6 +108,8 @@ export class MemStorage implements IStorage {
     this.directMessages = new Map();
     this.workspaceMembers = new Map();
     this.channelMembers = new Map();
+    this.messageReactions = new Map();
+    this.fileUploads = new Map();
 
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
@@ -508,6 +515,64 @@ export class MemStorage implements IStorage {
         user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.displayName.toLowerCase().includes(searchTerm.toLowerCase())
       );
+  }
+
+  async addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction> {
+    const id = this.messageReactionId++;
+    const newReaction: MessageReaction = {
+      ...reaction,
+      id,
+      createdAt: new Date()
+    };
+    this.messageReactions.set(id, newReaction);
+    return newReaction;
+  }
+
+  async getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]> {
+    const reactions = Array.from(this.messageReactions.values())
+      .filter(reaction => reaction.messageId === messageId);
+    
+    return reactions.map(reaction => {
+      const user = this.users.get(reaction.userId);
+      if (!user) throw new Error(`User with id ${reaction.userId} not found`);
+      return { ...reaction, user };
+    });
+  }
+
+  async removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean> {
+    const reaction = Array.from(this.messageReactions.values())
+      .find(r => r.messageId === messageId && r.userId === userId && r.emoji === emoji);
+    
+    if (reaction) {
+      this.messageReactions.delete(reaction.id);
+      return true;
+    }
+    return false;
+  }
+
+  async createFileUpload(file: InsertFileUpload): Promise<FileUpload> {
+    const id = this.fileUploadId++;
+    const newFile: FileUpload = {
+      ...file,
+      id,
+      createdAt: new Date()
+    };
+    this.fileUploads.set(id, newFile);
+    return newFile;
+  }
+
+  async getFileUpload(id: number): Promise<FileUpload | undefined> {
+    return this.fileUploads.get(id);
+  }
+
+  async getMessageById(id: number): Promise<MessageWithUser | undefined> {
+    const message = this.messages.get(id);
+    if (!message) return undefined;
+    
+    const user = this.users.get(message.userId);
+    if (!user) return undefined;
+    
+    return { ...message, user };
   }
 }
 
