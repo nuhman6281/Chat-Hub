@@ -57,7 +57,7 @@ type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const { 
     workspaces, 
     activeWorkspace, 
