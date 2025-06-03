@@ -66,11 +66,7 @@ export function setupAuth(app: Express) {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
-    store: new PostgresSessionStore({
-      pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: true
-    })
+    store: storage.sessionStore
   };
 
   app.use(session(sessionOptions));
