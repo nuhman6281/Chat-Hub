@@ -49,49 +49,39 @@ const createWorkspaceSchema = z.object({
 const createChannelSchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
   description: z.string().optional(),
-  isPrivate: z.boolean().default(false),
-});
-
-const inviteUserSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
 });
 
 type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
-type InviteUserValues = z.infer<typeof inviteUserSchema>;
 
-export default function HomePage() {
-  const { user, logoutMutation } = useAuth();
+export default function Home() {
+  const { user, logout } = useAuth();
   const { 
-    isConnected,
-    activeWorkspace, 
     workspaces, 
-    activeChannel, 
+    activeWorkspace, 
+    setActiveWorkspace, 
     channels, 
-    activeDM, 
-    directMessages, 
-    messages, 
-    isLoadingMessages,
-    setActiveWorkspace,
+    activeChannel, 
     setActiveChannel,
-    setActiveDM,
-    sendMessage,
+    directMessages,
+    activeDirectMessage,
+    setActiveDirectMessage,
+    messages, 
+    sendMessage, 
+    isConnected,
+    connectionStatus,
     createWorkspace,
-    createChannel,
-    startCall,
+    createChannel
   } = useChat();
-  const callContext = useCall();
+  const { isCallActive } = useCall();
   const { toast } = useToast();
   
-  const [messageInput, setMessageInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'channels' | 'direct'>('channels');
-  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
-  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
-  const [isInvitingUser, setIsInvitingUser] = useState(false);
-  const [inviteTarget, setInviteTarget] = useState<'workspace' | 'channel'>('workspace');
-  
-  // Form for creating a workspace
+  const [activeTab, setActiveTab] = useState('channels');
+  const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
+
+  // Form hooks
   const workspaceForm = useForm<CreateWorkspaceValues>({
     resolver: zodResolver(createWorkspaceSchema),
     defaultValues: {
@@ -99,124 +89,97 @@ export default function HomePage() {
       description: '',
     },
   });
-  
-  // Form for creating a channel
+
   const channelForm = useForm<CreateChannelValues>({
     resolver: zodResolver(createChannelSchema),
     defaultValues: {
       name: '',
       description: '',
-      isPrivate: false,
     },
   });
-  
-  // Form for inviting users
-  const inviteForm = useForm<InviteUserValues>({
-    resolver: zodResolver(inviteUserSchema),
-    defaultValues: {
-      username: '',
-    },
-  });
-  
-  // Handle sending a message
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!messageInput.trim()) return;
-    
-    const success = await sendMessage(messageInput);
-    if (success) {
-      setMessageInput('');
-    }
-  };
-  
-  // Handle creating a workspace
-  const onCreateWorkspace = async (values: CreateWorkspaceValues) => {
-    const newWorkspace = await createWorkspace(values.name, values.description);
-    if (newWorkspace) {
-      setIsCreatingWorkspace(false);
-      workspaceForm.reset();
-    }
-  };
-  
-  // Handle creating a channel
-  const onCreateChannel = async (values: CreateChannelValues) => {
-    const newChannel = await createChannel(
-      values.name, 
-      values.isPrivate, 
-      values.description
-    );
-    if (newChannel) {
-      setIsCreatingChannel(false);
-      channelForm.reset();
-    }
-  };
-  
-  // Handle inviting a user
-  const onInviteUser = async (values: InviteUserValues) => {
+
+  const handleLogout = async () => {
     try {
-      const url = inviteTarget === 'workspace' 
-        ? `/api/workspaces/${activeWorkspace?.id}/members`
-        : `/api/channels/${activeChannel?.id}/members`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: values.username }),
-      });
-      
-      if (response.ok) {
-        toast({
-          title: "User invited successfully",
-          description: `${values.username} has been added to the ${inviteTarget}`,
-        });
-        setIsInvitingUser(false);
-        inviteForm.reset();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Invitation failed",
-          description: error.message || "Failed to invite user",
-          variant: "destructive",
-        });
-      }
+      await logout();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Something went wrong while inviting the user",
+        description: "Failed to logout",
         variant: "destructive",
       });
     }
   };
-  
-  // Handle logout
-  const handleLogout = () => {
-    logoutMutation.mutate();
+
+  const handleCreateWorkspace = async (values: CreateWorkspaceValues) => {
+    try {
+      await createWorkspace(values);
+      setShowCreateWorkspace(false);
+      workspaceForm.reset();
+      toast({
+        title: "Success",
+        description: "Workspace created successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create workspace",
+        variant: "destructive",
+      });
+    }
   };
-  
-  // Get initials for avatar fallback
+
+  const handleCreateChannel = async (values: CreateChannelValues) => {
+    if (!activeWorkspace) return;
+    
+    try {
+      await createChannel({
+        ...values,
+        workspaceId: activeWorkspace.id,
+      });
+      setShowCreateChannel(false);
+      channelForm.reset();
+      toast({
+        title: "Success",
+        description: "Channel created successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create channel",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(part => part.charAt(0))
-      .join('')
-      .toUpperCase();
+    return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
   };
-  
-  // Format message timestamp
-  const formatMessageTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-  
-  // Render connection status
+
   const renderConnectionStatus = () => {
+    const getStatusColor = () => {
+      switch (connectionStatus) {
+        case 'connected': return 'text-green-500';
+        case 'connecting': return 'text-yellow-500';
+        case 'disconnected': return 'text-red-500';
+        default: return 'text-gray-500';
+      }
+    };
+
+    const getStatusText = () => {
+      switch (connectionStatus) {
+        case 'connected': return 'Connected';
+        case 'connecting': return 'Connecting...';
+        case 'disconnected': return 'Disconnected';
+        default: return 'Unknown';
+      }
+    };
+
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-        <div 
-          className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} 
-        />
-        {isConnected ? 'Connected' : 'Disconnected'}
+      <div className="px-2 py-1 text-xs">
+        <div className={`flex items-center gap-2 ${getStatusColor()}`}>
+          <div className="w-2 h-2 rounded-full bg-current"></div>
+          {sidebarOpen && <span>{getStatusText()}</span>}
+        </div>
       </div>
     );
   };
@@ -238,192 +201,150 @@ export default function HomePage() {
             </Avatar>
             {sidebarOpen && (
               <div className="flex flex-col">
-                <span className="font-medium">{user?.displayName}</span>
-                <span className="text-xs text-muted-foreground">@{user?.username}</span>
+                <span className="font-medium text-sm">{user?.displayName}</span>
+                <span className="text-xs text-muted-foreground">{user?.status || 'Online'}</span>
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(prev => !prev)}>
-            <Menu className="h-5 w-5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <Menu className="h-4 w-4" />
           </Button>
         </div>
-        
-        {/* Workspaces Section */}
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-3">
-            {sidebarOpen && <h2 className="text-sm font-semibold">Workspaces</h2>}
-            <Dialog open={isCreatingWorkspace} onOpenChange={setIsCreatingWorkspace}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <Plus className="h-4 w-4" />
+
+        {/* Workspaces */}
+        {sidebarOpen && (
+          <div className="px-4 py-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">WORKSPACES</span>
+              <Dialog open={showCreateWorkspace} onOpenChange={setShowCreateWorkspace}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Workspace</DialogTitle>
+                    <DialogDescription>
+                      Create a new workspace for your team
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Form {...workspaceForm}>
+                    <form onSubmit={workspaceForm.handleSubmit(handleCreateWorkspace)} className="space-y-4">
+                      <FormField
+                        control={workspaceForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Workspace name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={workspaceForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description (optional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Workspace description" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="submit">Create Workspace</Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </div>
+            
+            <div className="mt-2 space-y-1">
+              {workspaces.map(workspace => (
+                <Button
+                  key={workspace.id}
+                  variant={activeWorkspace?.id === workspace.id ? 'secondary' : 'ghost'}
+                  className="w-full justify-start h-8 px-2"
+                  onClick={() => setActiveWorkspace(workspace)}
+                >
+                  <span className="truncate text-sm">{workspace.name}</span>
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create a new workspace</DialogTitle>
-                  <DialogDescription>
-                    Create a new workspace to organize your channels and conversations.
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...workspaceForm}>
-                  <form onSubmit={workspaceForm.handleSubmit(onCreateWorkspace)} className="space-y-4">
-                    <FormField
-                      control={workspaceForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter workspace name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={workspaceForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description (optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter workspace description" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsCreatingWorkspace(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit">Create Workspace</Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+              ))}
+            </div>
           </div>
-          
-          <div className="space-y-1">
-            {workspaces.map(workspace => (
-              <Button
-                key={workspace.id}
-                variant={activeWorkspace?.id === workspace.id ? 'secondary' : 'ghost'}
-                className={`w-full justify-start ${!sidebarOpen && 'justify-center p-2'}`}
-                onClick={() => setActiveWorkspace(workspace)}
-              >
-                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center mr-3">
-                  {workspace.iconUrl ? (
-                    <img 
-                      src={workspace.iconUrl} 
-                      alt={workspace.name} 
-                      className="w-6 h-6 rounded" 
-                    />
-                  ) : (
-                    <span className="font-medium text-primary">
-                      {workspace.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                {sidebarOpen && <span className="truncate">{workspace.name}</span>}
-              </Button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Channels/Direct Messages Section */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {sidebarOpen && (
-            <Tabs 
-              defaultValue="channels" 
-              value={activeTab} 
-              onValueChange={(value) => setActiveTab(value as 'channels' | 'direct')}
-              className="w-full"
-            >
-              <div className="px-4 pt-4">
-                <TabsList className="w-full">
-                  <TabsTrigger value="channels" className="flex-1">Channels</TabsTrigger>
-                  <TabsTrigger value="direct" className="flex-1">Direct</TabsTrigger>
-                </TabsList>
-              </div>
+        )}
+
+        {/* Navigation Tabs */}
+        <div className="flex-1 overflow-hidden">
+          {sidebarOpen && activeWorkspace && (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+              <TabsList className="grid w-full grid-cols-2 mx-4 mt-2">
+                <TabsTrigger value="channels">Channels</TabsTrigger>
+                <TabsTrigger value="direct">Direct</TabsTrigger>
+              </TabsList>
               
               <TabsContent value="channels" className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-4 py-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">CHANNELS</span>
-                  <div className="flex gap-1">
-                    {activeWorkspace && (
-                      <>
-                        <Dialog open={isInvitingUser && inviteTarget === 'channel'} onOpenChange={(open) => {
-                          setIsInvitingUser(open);
-                          if (open) setInviteTarget('channel');
-                        }}>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Invite user to channel">
-                              <Users className="h-3 w-3" />
-                            </Button>
-                          </DialogTrigger>
-                        </Dialog>
-                        <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Create new channel">
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create a new channel</DialogTitle>
-                          <DialogDescription>
-                            Create a new channel in the {activeWorkspace.name} workspace.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <Form {...channelForm}>
-                          <form onSubmit={channelForm.handleSubmit(onCreateChannel)} className="space-y-4">
-                            <FormField
-                              control={channelForm.control}
-                              name="name"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Name</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Enter channel name" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={channelForm.control}
-                              name="description"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Description (optional)</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="Enter channel description" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <DialogFooter>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsCreatingChannel(false)}
-                              >
-                                Cancel
-                              </Button>
-                              <Button type="submit">Create Channel</Button>
-                            </DialogFooter>
-                          </form>
-                        </Form>
-                      </DialogContent>
-                    </Dialog>
-                  )}
+                  <Dialog open={showCreateChannel} onOpenChange={setShowCreateChannel}>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create Channel</DialogTitle>
+                        <DialogDescription>
+                          Create a new channel in {activeWorkspace?.name}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Form {...channelForm}>
+                        <form onSubmit={channelForm.handleSubmit(handleCreateChannel)} className="space-y-4">
+                          <FormField
+                            control={channelForm.control}
+                            name="name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Channel name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={channelForm.control}
+                            name="description"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Description (optional)</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Channel description" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <DialogFooter>
+                            <Button type="submit">Create Channel</Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
                 </div>
                 
                 <ScrollArea className="flex-1 px-2">
@@ -453,19 +374,12 @@ export default function HomePage() {
                     {directMessages.map(dm => (
                       <Button
                         key={dm.id}
-                        variant={activeDM?.id === dm.id ? 'secondary' : 'ghost'}
+                        variant={activeDirectMessage?.id === dm.id ? 'secondary' : 'ghost'}
                         className="w-full justify-start h-8 px-2"
-                        onClick={() => setActiveDM(dm)}
+                        onClick={() => setActiveDirectMessage(dm)}
                       >
-                        <Avatar className="h-5 w-5 mr-2">
-                          <AvatarImage src={dm.otherUser.avatarUrl || ''} />
-                          <AvatarFallback className="text-[10px]">
-                            {getInitials(dm.otherUser.displayName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col items-start">
-                          <span className="truncate text-sm">{dm.otherUser.displayName}</span>
-                        </div>
+                        <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span className="truncate text-sm">{dm.otherUser.displayName}</span>
                       </Button>
                     ))}
                   </div>
@@ -519,160 +433,86 @@ export default function HomePage() {
           {activeChannel && (
             <div className="flex items-center gap-2">
               <Hash className="h-5 w-5 text-muted-foreground" />
-              <h2 className="font-semibold">{activeChannel.name}</h2>
+              <h1 className="text-lg font-semibold">{activeChannel.name}</h1>
               {activeChannel.description && (
-                <>
-                  <Separator orientation="vertical" className="h-5 mx-2" />
-                  <p className="text-sm text-muted-foreground">{activeChannel.description}</p>
-                </>
+                <span className="text-sm text-muted-foreground">- {activeChannel.description}</span>
               )}
             </div>
           )}
           
-          {activeDM && (
+          {activeDirectMessage && (
             <div className="flex items-center gap-2">
-              <Avatar className="h-7 w-7">
-                <AvatarImage src={activeDM.otherUser.avatarUrl || ''} />
-                <AvatarFallback>
-                  {getInitials(activeDM.otherUser.displayName)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h2 className="font-semibold">{activeDM.otherUser.displayName}</h2>
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    activeDM.otherUser.status === 'online' ? 'bg-green-500' : 'bg-amber-500'
-                  } mr-1`} />
-                  {activeDM.otherUser.status === 'online' ? 'Online' : 'Away'}
-                </div>
-              </div>
+              <User className="h-5 w-5 text-muted-foreground" />
+              <h1 className="text-lg font-semibold">{activeDirectMessage.otherUser.displayName}</h1>
             </div>
           )}
           
-          {!activeChannel && !activeDM && (
-            <div className="text-muted-foreground">
-              Select a channel or conversation
-            </div>
+          {!activeChannel && !activeDirectMessage && (
+            <h1 className="text-lg font-semibold">Welcome to ChatHub</h1>
           )}
           
           <div className="ml-auto flex items-center gap-2">
-            {activeDM && (
+            {(activeChannel || activeDirectMessage) && (
               <>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-green-600"
-                  onClick={() => callContext.startCall(activeDM.otherUser.id, 'audio')}
-                  title="Audio call"
-                >
-                  <Phone className="h-5 w-5" />
+                <Button variant="ghost" size="icon">
+                  <Phone className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-blue-600"
-                  onClick={() => callContext.startCall(activeDM.otherUser.id, 'video')}
-                  title="Video call"
-                >
-                  <Video className="h-5 w-5" />
+                <Button variant="ghost" size="icon">
+                  <Video className="h-4 w-4" />
                 </Button>
-                <Separator orientation="vertical" className="h-6 mx-1" />
               </>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <User className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </header>
         
-        {/* Messages */}
+        {/* Messages Area */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {isLoadingMessages ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
+          {(activeChannel || activeDirectMessage) ? (
             <>
-              {(!activeChannel && !activeDM) ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                  <h2 className="text-2xl font-bold mb-2">Welcome to ChatHub</h2>
-                  <p className="text-muted-foreground max-w-md">
-                    Select a channel or direct message from the sidebar to start chatting.
-                    {!workspaces.length && " Or create your first workspace to get started."}
-                  </p>
-                  {!workspaces.length && (
-                    <Button 
-                      className="mt-4" 
-                      onClick={() => setIsCreatingWorkspace(true)}
-                    >
-                      Create Workspace
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <ScrollArea className="flex-1 p-4 flex flex-col-reverse">
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div key={message.id} className="flex gap-3 group">
-                        <Avatar className="h-8 w-8 mt-1">
-                          <AvatarImage src={message.user.avatarUrl || ''} />
-                          <AvatarFallback>
-                            {getInitials(message.user.displayName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">
-                              {message.user.displayName}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatMessageTime(message.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-sm mt-1">{message.content}</p>
+              <ScrollArea className="flex-1 px-6 py-4">
+                <div className="space-y-4">
+                  {messages.map((message) => (
+                    <div key={message.id} className="flex gap-3">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={message.user.avatarUrl || ''} />
+                        <AvatarFallback>
+                          {getInitials(message.user.displayName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{message.user.displayName}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(message.createdAt).toLocaleTimeString()}
+                          </span>
                         </div>
+                        <div className="text-sm">{message.content}</div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-              
-              {/* Enhanced Message Input */}
-              {(activeChannel || activeDM) && (
-                <div className="p-4 border-t">
-                  <EnhancedMessageInput
-                    onSendMessage={(content, messageType = 'text', mediaFile) => {
-                      if (activeChannel) {
-                        sendMessage(content, activeChannel.id, undefined, messageType, mediaFile);
-                      } else if (activeDM) {
-                        sendMessage(content, undefined, activeDM.id, messageType, mediaFile);
-                      }
-                    }}
-                    onStartCall={(type) => {
-                      if (activeChannel || activeDM) {
-                        startCall(type);
-                      }
-                    }}
-                    placeholder={`Message ${
-                      activeChannel 
-                        ? `#${activeChannel.name}` 
-                        : activeDM?.otherUser.displayName
-                    }`}
-                    disabled={false}
-                  />
+                    </div>
+                  ))}
                 </div>
-              )}
+              </ScrollArea>
+              
+              {/* Message Input */}
+              <div className="border-t p-4">
+                <EnhancedMessageInput 
+                  onSendMessage={sendMessage}
+                  disabled={!isConnected}
+                  placeholder={
+                    activeChannel 
+                      ? `Message #${activeChannel.name}` 
+                      : `Message ${activeDirectMessage?.otherUser.displayName}`
+                  }
+                />
+              </div>
             </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-2">Welcome to ChatHub</h2>
+                <p className="text-muted-foreground">Select a channel or start a direct message to begin chatting</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
