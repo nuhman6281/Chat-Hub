@@ -488,7 +488,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Channels
   app.post('/api/channels', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
-      const validatedData = insertChannelSchema.parse(req.body);
+      // Handle nested name object from frontend
+      const channelName = typeof req.body.name === 'string' ? req.body.name : req.body.name?.name || req.body.name;
+      const workspaceId = req.body.workspaceId || req.body.name?.workspaceId;
+      const description = req.body.description || req.body.name?.description;
+      
+      if (!channelName || typeof channelName !== 'string') {
+        return res.status(400).json({ message: 'Channel name is required' });
+      }
+      
+      if (!workspaceId || typeof workspaceId !== 'number') {
+        return res.status(400).json({ message: 'Workspace ID is required' });
+      }
+      
+      const validatedData = insertChannelSchema.parse({
+        name: channelName,
+        workspaceId: workspaceId,
+        description: description || null,
+        isPrivate: req.body.isPrivate || false
+      });
+      
       const userId = (req.user as any).id;
       
       // Check if user is a member of the workspace
@@ -507,6 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(channel);
     } catch (error) {
+      console.error('Channel creation error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid channel data', errors: error.errors });
       }
