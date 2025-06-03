@@ -128,8 +128,10 @@ A comprehensive cross-platform communication application designed for seamless, 
 - `POST /api/channels` - Create channel
 - `GET /api/workspaces/:workspaceId/channels` - Get workspace channels
 - `GET /api/channels/:id` - Get channel details
-- `POST /api/channels/:id/members` - Add channel member
+- `POST /api/channels/:id/members` - Add channel member (invite user to channel)
 - `GET /api/channels/:id/members` - Get channel members
+- `POST /api/workspaces/:id/members` - Add workspace member (invite user to workspace)
+- `GET /api/workspaces/:id/members` - Get workspace members
 
 ### 4. Direct Messaging
 
@@ -474,11 +476,64 @@ POST /api/calls/initiate
 POST /api/calls/signal
 ```
 
+### User Management Endpoints
+```
+GET  /api/users?search=username       # Search for users
+POST /api/users                       # Create new user
+```
+
 ### Utility Endpoints
 ```
 POST /api/upload
-GET  /api/users
 POST /api/messages/:id/react
+```
+
+## User Invitation System
+
+### Overview
+The application includes a comprehensive user invitation system that allows workspace and channel administrators to add users to their respective spaces. The system supports both inviting existing users and creating new user accounts.
+
+### User Creation Flow
+1. Administrator clicks "Create User" button in the interface
+2. System presents form for username, display name, and password
+3. Server validates input and checks for username uniqueness
+4. New user account created with hashed password
+5. User can immediately be invited to workspaces and channels
+
+### Invitation Flow
+1. **Workspace Invitation**: Users can be added to workspaces via POST `/api/workspaces/:id/members`
+2. **Channel Invitation**: Users can be added to channels via POST `/api/channels/:id/members`
+3. System validates user permissions and membership requirements
+4. Real-time notifications sent to invited users via WebSocket
+5. Automatic channel membership for workspace-level invitations
+
+### UI Components
+- **InviteUserDialog**: Modal for inviting existing users to workspaces/channels
+- **CreateUserDialog**: Modal for creating new user accounts
+- **User Search**: Real-time search functionality for finding users
+- **Membership Management**: Visual indicators for user roles and permissions
+
+### API Integration
+```typescript
+// Invite user to workspace
+POST /api/workspaces/1/members
+{
+  "username": "newuser"
+}
+
+// Invite user to channel  
+POST /api/channels/1/members
+{
+  "username": "existinguser"
+}
+
+// Create new user
+POST /api/users
+{
+  "username": "newuser",
+  "displayName": "New User",
+  "password": "securepassword"
+}
 ```
 
 ## Development & Deployment

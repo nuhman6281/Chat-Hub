@@ -13,7 +13,7 @@ import {
   insertChannelMemberSchema,
   type MessageWithUser
 } from "@shared/schema";
-import { setupAuth, ensureAuthenticated, verifyToken } from "./auth";
+import { setupAuth, ensureAuthenticated, verifyToken, comparePasswords } from "./auth";
 
 // WebSocket client map
 interface ConnectedClient {
@@ -811,6 +811,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  });
+
+  // Create a new user
+  app.post('/api/users', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { username, displayName, password } = req.body;
+      
+      if (!username || !displayName || !password) {
+        return res.status(400).json({ message: 'Username, display name, and password are required' });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(409).json({ message: 'Username already exists' });
+      }
+
+      // Create the user with hashed password (using bcrypt directly)
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUser = await storage.createUser({
+        username,
+        displayName,
+        password: hashedPassword,
+      });
+
+      // Remove password from response
+      const { password: _, ...userResponse } = newUser;
+      res.status(201).json(userResponse);
+    } catch (error) {
+      console.error('Error creating user:', error);
+      res.status(500).json({ message: 'Failed to create user' });
     }
   });
 
