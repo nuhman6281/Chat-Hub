@@ -52,8 +52,13 @@ const createChannelSchema = z.object({
   isPrivate: z.boolean().default(false),
 });
 
+const inviteUserSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+});
+
 type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
+type InviteUserValues = z.infer<typeof inviteUserSchema>;
 
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
@@ -83,6 +88,8 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'channels' | 'direct'>('channels');
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [isInvitingUser, setIsInvitingUser] = useState(false);
+  const [inviteTarget, setInviteTarget] = useState<'workspace' | 'channel'>('workspace');
   
   // Form for creating a workspace
   const workspaceForm = useForm<CreateWorkspaceValues>({
@@ -100,6 +107,14 @@ export default function HomePage() {
       name: '',
       description: '',
       isPrivate: false,
+    },
+  });
+  
+  // Form for inviting users
+  const inviteForm = useForm<InviteUserValues>({
+    resolver: zodResolver(inviteUserSchema),
+    defaultValues: {
+      username: '',
     },
   });
   
@@ -134,6 +149,43 @@ export default function HomePage() {
     if (newChannel) {
       setIsCreatingChannel(false);
       channelForm.reset();
+    }
+  };
+  
+  // Handle inviting a user
+  const onInviteUser = async (values: InviteUserValues) => {
+    try {
+      const url = inviteTarget === 'workspace' 
+        ? `/api/workspaces/${activeWorkspace?.id}/members`
+        : `/api/channels/${activeChannel?.id}/members`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: values.username }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "User invited successfully",
+          description: `${values.username} has been added to the ${inviteTarget}`,
+        });
+        setIsInvitingUser(false);
+        inviteForm.reset();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Invitation failed",
+          description: error.message || "Failed to invite user",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong while inviting the user",
+        variant: "destructive",
+      });
     }
   };
   
@@ -303,13 +355,25 @@ export default function HomePage() {
               <TabsContent value="channels" className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-4 py-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">CHANNELS</span>
-                  {activeWorkspace && (
-                    <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </DialogTrigger>
+                  <div className="flex gap-1">
+                    {activeWorkspace && (
+                      <>
+                        <Dialog open={isInvitingUser && inviteTarget === 'channel'} onOpenChange={(open) => {
+                          setIsInvitingUser(open);
+                          if (open) setInviteTarget('channel');
+                        }}>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Invite user to channel">
+                              <Users className="h-3 w-3" />
+                            </Button>
+                          </DialogTrigger>
+                        </Dialog>
+                        <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Create new channel">
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
                           <DialogTitle>Create a new channel</DialogTitle>
