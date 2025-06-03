@@ -453,12 +453,15 @@ export default function Home() {
           )}
           
           <div className="ml-auto flex items-center gap-2">
-            {(activeChannel || activeDM) && (
+            {activeDM && (
               <>
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  onClick={() => activeDM && initiateCall(activeDM.otherUser.id, 'audio')}
+                  onClick={() => {
+                    console.log('Audio call button clicked for user:', activeDM.otherUser.id);
+                    initiateCall(activeDM.otherUser.id, 'audio');
+                  }}
                   title="Start audio call"
                 >
                   <Phone className="h-4 w-4" />
@@ -466,11 +469,20 @@ export default function Home() {
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  onClick={() => activeDM && initiateCall(activeDM.otherUser.id, 'video')}
+                  onClick={() => {
+                    console.log('Video call button clicked for user:', activeDM.otherUser.id);
+                    initiateCall(activeDM.otherUser.id, 'video');
+                  }}
                   title="Start video call"
                 >
                   <Video className="h-4 w-4" />
                 </Button>
+              </>
+            )}
+            
+            {(activeChannel || activeDM) && (
+              <>
+                {/* User Management Buttons */}
                 
                 {/* User Management Buttons */}
                 <Button 
@@ -480,6 +492,29 @@ export default function Home() {
                   title="Create new user"
                 >
                   <User className="h-4 w-4" />
+                </Button>
+                
+                {/* Test Direct Message Button */}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={async () => {
+                    console.log('Starting DM with user 4');
+                    const dm = await startDirectMessage(4);
+                    if (dm) {
+                      console.log('DM created:', dm);
+                      setActiveDM(dm);
+                      setActiveChannel(null);
+                      toast({
+                        title: "Direct message started",
+                        description: `Started conversation with ${dm.otherUser.displayName}`
+                      });
+                    }
+                  }}
+                  title="Start DM with User 4 (for testing calls)"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Test DM
                 </Button>
                 
                 {activeChannel && (
