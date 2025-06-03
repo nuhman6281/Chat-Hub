@@ -250,14 +250,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper functions for broadcasting messages
   function broadcastToChannel(channelId: number, data: any) {
+    console.log(`=== Broadcasting to channel ${channelId} ===`);
+    console.log(`Data to broadcast:`, JSON.stringify(data, null, 2));
+    console.log(`Total connected clients: ${clients.length}`);
+    
+    // Get channel members asynchronously
     storage.getChannelMembersByChannelId(channelId).then(members => {
       const memberIds = members.map(member => member.userId);
+      console.log(`Channel ${channelId} member IDs:`, memberIds);
       
-      // Track how many clients received the message
-      let deliveryCount = 0;
-      const totalEligibleClients = clients.filter(client => 
-        memberIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN
-      ).length;
+      // Find eligible clients
+      const eligibleClients = clients.filter(client => {
+        const isOpen = client.ws.readyState === WebSocket.OPEN;
+        const isMember = memberIds.includes(client.userId);
+        console.log(`Client user ${client.userId}: open=${isOpen}, member=${isMember}`);
+        return isOpen && isMember;
+      });
+      
+      console.log(`Found ${eligibleClients.length} eligible clients for channel ${channelId}`);
       
       // Prepare message payload with correct format expected by client
       const message = {
@@ -266,22 +276,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const messageStr = JSON.stringify(message);
+      console.log(`Sending message:`, messageStr);
       
       // Send to all eligible clients
-      clients.forEach(client => {
-        if (memberIds.includes(client.userId) && client.ws.readyState === WebSocket.OPEN) {
-          try {
-            client.ws.send(messageStr);
-            deliveryCount++;
-          } catch (error) {
-            console.error(`Failed to send message to client: ${error}`);
-          }
+      let deliveryCount = 0;
+      eligibleClients.forEach((client, index) => {
+        try {
+          console.log(`Sending to client ${index + 1} (user ${client.userId})`);
+          client.ws.send(messageStr);
+          deliveryCount++;
+        } catch (error) {
+          console.error(`Failed to send message to client ${index + 1}:`, error);
         }
       });
       
-      console.log(`Message broadcast to channel ${channelId}: ${deliveryCount}/${totalEligibleClients} clients received`);
+      console.log(`=== Broadcast complete: ${deliveryCount}/${eligibleClients.length} clients received message ===`);
     }).catch(error => {
-      console.error(`Error broadcasting to channel ${channelId}:`, error);
+      console.error(`Error getting channel members for channel ${channelId}:`, error);
     });
   }
 

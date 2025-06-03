@@ -6,6 +6,9 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Force use of in-memory storage to avoid database connection issues
+process.env.USE_MEMORY_STORAGE = 'true';
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

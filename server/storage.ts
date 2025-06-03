@@ -717,4 +717,6 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
+// Force use of in-memory storage for stability
 export const storage = new MemStorage();
+console.log('Using MemStorage for complete in-memory operation');
