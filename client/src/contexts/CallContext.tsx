@@ -146,30 +146,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     console.log('CallContext: Registering WebSocket event handlers with on function');
-    
-    // Add a delay to ensure CallContext handlers are registered after ChatContext
-    const timeoutId = setTimeout(() => {
-      const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
-      const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
-      const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
-      const unsubscribeCallEnded = on('call_ended', handleCallEnded);
-
-      // Store cleanup functions for proper cleanup
-      (window as any).__callContextCleanup = () => {
-        console.log('CallContext: Cleaning up WebSocket event handlers');
-        if (unsubscribeIncomingCall) unsubscribeIncomingCall();
-        if (unsubscribeCallAnswered) unsubscribeCallAnswered();
-        if (unsubscribeCallRejected) unsubscribeCallRejected();
-        if (unsubscribeCallEnded) unsubscribeCallEnded();
-      };
-    }, 100);
+    const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
+    const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
+    const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
+    const unsubscribeCallEnded = on('call_ended', handleCallEnded);
 
     return () => {
-      clearTimeout(timeoutId);
-      if ((window as any).__callContextCleanup) {
-        (window as any).__callContextCleanup();
-        delete (window as any).__callContextCleanup;
-      }
+      console.log('CallContext: Cleaning up WebSocket event handlers');
+      if (unsubscribeIncomingCall) unsubscribeIncomingCall();
+      if (unsubscribeCallAnswered) unsubscribeCallAnswered();
+      if (unsubscribeCallRejected) unsubscribeCallRejected();
+      if (unsubscribeCallEnded) unsubscribeCallEnded();
     };
   }, [isConnected, on]);
 

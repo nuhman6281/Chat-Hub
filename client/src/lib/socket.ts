@@ -108,21 +108,40 @@ export function useSocket() {
     };
   }, [reconnectAttempt]);
   
-  // Register event handlers
+  // Register event handlers with unique IDs to prevent conflicts
   const on = useCallback((eventType: string, handler: SocketHandler) => {
     if (!handlersRef.current.has(eventType)) {
       handlersRef.current.set(eventType, new Set());
     }
     
-    handlersRef.current.get(eventType)!.add(handler);
+    // Create a unique wrapper for this handler to ensure proper Set behavior
+    const wrappedHandler = (payload: any) => {
+      try {
+        handler(payload);
+      } catch (error) {
+        console.error(`Error in handler for ${eventType}:`, error);
+      }
+    };
+    
+    // Store the original handler reference for cleanup
+    (wrappedHandler as any).__originalHandler = handler;
+    
+    handlersRef.current.get(eventType)!.add(wrappedHandler);
     console.log(`Handler registered for ${eventType}, total handlers: ${handlersRef.current.get(eventType)!.size}`);
     
     // Return cleanup function
     return () => {
       const handlers = handlersRef.current.get(eventType);
       if (handlers) {
-        handlers.delete(handler);
-        console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
+        // Find and remove the wrapped handler
+        const handlersArray = Array.from(handlers);
+        for (const h of handlersArray) {
+          if ((h as any).__originalHandler === handler) {
+            handlers.delete(h);
+            console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
+            break;
+          }
+        }
         if (handlers.size === 0) {
           handlersRef.current.delete(eventType);
         }
