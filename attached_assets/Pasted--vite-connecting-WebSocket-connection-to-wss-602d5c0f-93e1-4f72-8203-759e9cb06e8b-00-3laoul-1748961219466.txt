@@ -1,0 +1,39 @@
+ [vite] connecting...
+ WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/?token=8SqjW1y9bM4b' failed: 
+setupWebSocket @ /@vite/client:536
+/@vite/client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=8SqjW1y9bM4b' is invalid.
+    at setupWebSocket (/@vite/client:536:19)
+    at fallback (/@vite/client:509:16)
+    at WebSocket.<anonymous> (/@vite/client:555:7)
+index.iife.js:1347 content script loaded
+index.iife.js:1 initial theme: light
+/api/auth/user:1 
+            
+            
+           Failed to load resource: the server responded with a status of 401 (Unauthorized)
+ WebSocket connection established
+/auth:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) null
+602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) null
+hook.js:608 Encryption failed, sending unencrypted: SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+overrideMethod @ hook.js:608
+ Encryption failed, sending unencrypted: SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+overrideMethod @ hook.js:608
+sendMessage @ /src/contexts/ChatContext.tsx:291
+await in sendMessage
+(anonymous) @ /src/components/chat…essageInput.tsx:114
+(anonymous) @ /src/components/chat…essageInput.tsx:121
+callCallback2 @ chunk-UZOKQUDP.js:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js:3736
+executeDispatch @ chunk-UZOKQUDP.js:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js:7034
+processDispatchQueue @ chunk-UZOKQUDP.js:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js:7051
+(anonymous) @ chunk-UZOKQUDP.js:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js:18913
+batchedUpdates @ chunk-UZOKQUDP.js:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js:5478
+dispatchEvent @ chunk-UZOKQUDP.js:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js:5449

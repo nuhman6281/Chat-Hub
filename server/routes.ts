@@ -735,6 +735,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/direct-messages/:id', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const directMessageId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      
+      // Get the direct message conversation
+      const dm = await storage.getDirectMessage(directMessageId);
+      if (!dm) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      
+      // Check if user is a participant in the conversation
+      if (dm.user1Id !== userId && dm.user2Id !== userId) {
+        return res.status(403).json({ message: 'You are not part of this conversation' });
+      }
+      
+      // Get user details for both participants
+      const user1 = await storage.getUser(dm.user1Id);
+      const user2 = await storage.getUser(dm.user2Id);
+      
+      if (!user1 || !user2) {
+        return res.status(500).json({ message: 'User data not found' });
+      }
+      
+      res.json({
+        id: dm.id,
+        user1Id: dm.user1Id,
+        user2Id: dm.user2Id,
+        createdAt: dm.createdAt,
+        user1,
+        user2
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch direct message' });
+    }
+  });
+
   app.get('/api/direct-messages/:id/messages', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const directMessageId = parseInt(req.params.id);
