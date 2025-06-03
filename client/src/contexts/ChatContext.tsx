@@ -94,9 +94,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   
-  // Fetch workspaces when user changes
+  // Initialize encryption and fetch workspaces when user changes
   useEffect(() => {
     if (user) {
+      // Initialize encryption keys for the user
+      encryptionService.getOrCreateKeyPair();
       fetchWorkspaces();
     } else {
       setWorkspaces([]);
@@ -150,7 +152,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     const handleNewMessage = (payload: any) => {
       console.log('Received new message:', payload);
-      const message = payload;
+      let message = payload;
+      
+      // Decrypt message if it's encrypted and addressed to current user
+      if (message.isEncrypted && message.directMessageId && user) {
+        try {
+          const encryptedMessage = {
+            encryptedContent: message.encryptedContent,
+            nonce: message.nonce,
+            senderPublicKey: message.senderPublicKey
+          };
+          const decryptedContent = encryptionService.decryptMessage(encryptedMessage);
+          message = { ...message, content: decryptedContent };
+        } catch (error) {
+          console.error('Failed to decrypt message:', error);
+          message = { ...message, content: '[Encrypted message - failed to decrypt]' };
+        }
+      }
       
       // Add message to the list if it belongs to the active conversation
       if (
@@ -294,15 +312,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const targetChannelId = channelId || (activeChannel ? activeChannel.id : undefined);
       const targetDMId = directMessageId || (activeDM ? activeDM.id : undefined);
 
+      // Prepare message payload
+      let messagePayload: any = {
+        content,
+        messageType,
+        mediaUrl,
+        mediaType,
+        mediaSize,
+        isEncrypted: false
+      };
+
+      // For direct messages, encrypt the content
+      if (targetDMId) {
+        try {
+          // Get recipient's public key from the DM data
+          const dmResponse = await fetch(`/api/direct-messages/${targetDMId}`);
+          if (dmResponse.ok) {
+            const dmData = await dmResponse.json();
+            const otherUser = dmData.user1Id === user.id ? dmData.user2 : dmData.user1;
+            
+            if (otherUser?.publicKey && messageType === 'text') {
+              const encryptedMessage = encryptionService.encryptMessage(content, otherUser.publicKey);
+              messagePayload = {
+                ...messagePayload,
+                content: '', // Clear text content for encrypted messages
+                isEncrypted: true,
+                encryptedContent: encryptedMessage.encryptedContent,
+                nonce: encryptedMessage.nonce,
+                senderPublicKey: encryptedMessage.senderPublicKey
+              };
+            }
+          }
+        } catch (encryptError) {
+          console.error('Encryption failed, sending unencrypted:', encryptError);
+        }
+      }
+
       if (targetChannelId) {
         // Channel message
         const result = send('message', {
-          content,
-          channelId: targetChannelId,
-          messageType,
-          mediaUrl,
-          mediaType,
-          mediaSize
+          ...messagePayload,
+          channelId: targetChannelId
         });
         
         if (!result) {
@@ -317,12 +367,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } else if (targetDMId) {
         // Direct message
         const result = send('message', {
-          content,
-          directMessageId: targetDMId,
-          messageType,
-          mediaUrl,
-          mediaType,
-          mediaSize
+          ...messagePayload,
+          directMessageId: targetDMId
         });
         
         if (!result) {

@@ -26,6 +26,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserStatus(id: number, status: string): Promise<User | undefined>;
+  updateUserPublicKey(id: number, publicKey: string): Promise<User | undefined>;
 
   // Workspace operations
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
@@ -104,7 +105,8 @@ export class MemStorage implements IStorage {
       password: "$2b$10$K8QVw8VX7z0Z9Z0Z9Z0Z9u.K8QVw8VX7z0Z9Z0Z9Z0Z9u.K8QVw8VX",
       displayName: "Demo User",
       status: "online",
-      avatarUrl: null
+      avatarUrl: null,
+      publicKey: null
     };
     this.users.set(1, seedUser);
 

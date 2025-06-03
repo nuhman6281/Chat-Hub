@@ -91,6 +91,10 @@ class EncryptionService {
     
     const encrypted = box(messageUint8, nonce, recipientKey, this.keyPair.secretKey);
     
+    if (!encrypted) {
+      throw new Error('Failed to encrypt message');
+    }
+    
     return {
       encryptedContent: encodeBase64(encrypted),
       nonce: encodeBase64(nonce),
