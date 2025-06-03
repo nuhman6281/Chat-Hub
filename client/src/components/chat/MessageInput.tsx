@@ -273,8 +273,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               onKeyPress={handleKeyPress}
               placeholder={placeholder}
               disabled={disabled || uploadingFile !== null}
-              className="pr-10 resize-none"
-              multiline
+              className="pr-10"
             />
             
             {/* Emoji Picker */}
