@@ -109,7 +109,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Handle new chat message
           console.log(`Processing message from user ${userId}:`, data);
           
-          if (!data.content || data.content.trim() === '') {
+          const content = data.payload?.content || data.content;
+          const channelId = data.payload?.channelId || data.channelId;
+          const directMessageId = data.payload?.directMessageId || data.directMessageId;
+          
+          if (!content || content.trim() === '') {
             console.log('Empty message content detected');
             ws.send(JSON.stringify({ 
               type: 'error', 
@@ -118,9 +122,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          if (data.channelId) {
+          if (channelId) {
             // Channel message
-            const isUserInChannel = await storage.isUserInChannel(userId, data.channelId);
+            const isUserInChannel = await storage.isUserInChannel(userId, channelId);
             if (!isUserInChannel) {
               ws.send(JSON.stringify({ 
                 type: 'error', 
@@ -130,9 +134,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             const message = await storage.createMessage({
-              content: data.content,
+              content,
               userId,
-              channelId: data.channelId,
+              channelId,
               directMessageId: undefined
             });
 

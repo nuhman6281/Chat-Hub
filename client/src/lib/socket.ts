@@ -29,7 +29,7 @@ export function useSocket() {
     const connectSocket = () => {
       try {
         // Close existing connection if any
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        if (socketRef.current) {
           socketRef.current.close();
         }
         
@@ -58,16 +58,19 @@ export function useSocket() {
           }
         };
         
-        socketRef.current.onclose = () => {
-          console.log('WebSocket connection closed');
+        socketRef.current.onclose = (event) => {
+          console.log('WebSocket connection closed', event.code, event.reason);
           setIsConnected(false);
           
-          // Attempt to reconnect with exponential backoff
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
-          setTimeout(() => {
-            setReconnectAttempt(prev => prev + 1);
-            connectSocket();
-          }, delay);
+          // Disable automatic reconnection in development to prevent loops
+          // Only reconnect on unexpected closures and limit attempts
+          if (event.code !== 1000 && event.code !== 1001 && reconnectAttempt < 3) {
+            const delay = Math.min(2000 * Math.pow(2, reconnectAttempt), 10000);
+            setTimeout(() => {
+              setReconnectAttempt(prev => prev + 1);
+              connectSocket();
+            }, delay);
+          }
         };
         
         socketRef.current.onerror = (error) => {
