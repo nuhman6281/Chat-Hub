@@ -89,10 +89,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   // WebSocket event handlers for calls
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected || !on) return;
 
     const handleIncomingCall = (payload: any) => {
-      console.log('Incoming call received:', payload);
+      console.log('CallContext: Incoming call received:', payload);
       setCurrentCallId(payload.callId);
       setIncomingCall(true);
       setCallType(payload.callType);
@@ -145,7 +145,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    console.log('CallContext: Registering WebSocket event handlers');
+    console.log('CallContext: Registering WebSocket event handlers with on function');
     const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
     const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
     const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
@@ -153,10 +153,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     return () => {
       console.log('CallContext: Cleaning up WebSocket event handlers');
-      unsubscribeIncomingCall();
-      unsubscribeCallAnswered();
-      unsubscribeCallRejected();
-      unsubscribeCallEnded();
+      if (unsubscribeIncomingCall) unsubscribeIncomingCall();
+      if (unsubscribeCallAnswered) unsubscribeCallAnswered();
+      if (unsubscribeCallRejected) unsubscribeCallRejected();
+      if (unsubscribeCallEnded) unsubscribeCallEnded();
     };
   }, [isConnected, on]);
 
