@@ -108,7 +108,9 @@ export const messages = pgTable("messages", {
   replyToId: integer("reply_to_id"), // for threaded messages
   isEdited: boolean("is_edited").default(false),
   editedAt: timestamp("edited_at"),
-  reactions: text("reactions").array(), // JSON array of reactions
+  // Thread information
+  threadId: integer("thread_id"), // ID of the parent message that started the thread
+  threadCount: integer("thread_count").default(0), // Number of replies in thread
   // Encryption fields
   isEncrypted: boolean("is_encrypted").default(false),
   encryptedContent: text("encrypted_content"), // Encrypted message content
@@ -116,6 +118,8 @@ export const messages = pgTable("messages", {
   senderPublicKey: text("sender_public_key"), // Sender's public key for verification
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+
 
 export const insertMessageSchema = createInsertSchema(messages).pick({
   content: true,
@@ -127,6 +131,7 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   channelId: true,
   directMessageId: true,
   replyToId: true,
+  threadId: true,
   isEncrypted: true,
   encryptedContent: true,
   nonce: true,
