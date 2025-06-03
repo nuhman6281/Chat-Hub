@@ -143,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log('Message created successfully:', message);
 
             // Broadcast to all clients in the channel
-            broadcastToChannel(data.channelId, {
+            broadcastToChannel(channelId, {
               type: 'new_message',
               payload: message
             });
