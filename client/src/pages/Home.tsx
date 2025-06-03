@@ -396,7 +396,7 @@ export default function Home() {
                             onClick={async () => {
                               console.log('Starting DM with user 4');
                               const dm = await startDirectMessage(4);
-                              if (dm) {
+                              if (dm && dm.otherUser) {
                                 console.log('DM created:', dm);
                                 setActiveDM(dm);
                                 setActiveChannel(null);
@@ -404,6 +404,8 @@ export default function Home() {
                                   title: "Direct message started",
                                   description: `Started conversation with ${dm.otherUser.displayName}`
                                 });
+                              } else {
+                                console.error('Failed to create DM or missing user data');
                               }
                             }}
                           >

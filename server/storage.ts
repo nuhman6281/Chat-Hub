@@ -390,11 +390,70 @@ export class MemStorage implements IStorage {
     return this.directMessages.get(id);
   }
 
-  async getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessage | undefined> {
-    return Array.from(this.directMessages.values()).find(dm => 
+  async getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessageWithUser | undefined> {
+    const dm = Array.from(this.directMessages.values()).find(dm => 
       (dm.user1Id === user1Id && dm.user2Id === user2Id) ||
       (dm.user1Id === user2Id && dm.user2Id === user1Id)
     );
+    
+    if (!dm) return undefined;
+    
+    // Determine the other user
+    const otherUserId = dm.user1Id === user1Id ? dm.user2Id : dm.user1Id;
+    const otherUser = await this.getUser(otherUserId);
+    
+    if (!otherUser) {
+      throw new Error(`User with id ${otherUserId} not found`);
+    }
+
+    const lastMessage = Array.from(this.messages.values())
+      .filter(msg => msg.directMessageId === dm.id)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+    let lastMessageWithUser;
+    if (lastMessage) {
+      const lastMessageUser = await this.getUser(lastMessage.userId);
+      if (lastMessageUser) {
+        lastMessageWithUser = {
+          id: lastMessage.id,
+          content: lastMessage.content,
+          userId: lastMessage.userId,
+          channelId: lastMessage.channelId,
+          directMessageId: lastMessage.directMessageId,
+          createdAt: lastMessage.createdAt,
+          messageType: lastMessage.messageType,
+          mediaUrl: lastMessage.mediaUrl,
+          mediaType: lastMessage.mediaType,
+          mediaSize: lastMessage.mediaSize,
+          replyToId: lastMessage.replyToId,
+          isEdited: lastMessage.isEdited,
+          editedAt: lastMessage.editedAt,
+          reactions: lastMessage.reactions,
+          isEncrypted: lastMessage.isEncrypted,
+          encryptedContent: lastMessage.encryptedContent,
+          nonce: lastMessage.nonce,
+          senderPublicKey: lastMessage.senderPublicKey,
+          user: lastMessageUser
+        };
+      }
+    }
+
+    return {
+      id: dm.id,
+      user1Id: dm.user1Id,
+      user2Id: dm.user2Id,
+      createdAt: dm.createdAt,
+      otherUser: {
+        id: otherUser.id,
+        username: otherUser.username,
+        displayName: otherUser.displayName,
+        status: otherUser.status,
+        avatarUrl: otherUser.avatarUrl,
+        password: otherUser.password,
+        publicKey: otherUser.publicKey
+      },
+      lastMessage: lastMessageWithUser
+    };
   }
 
   async getDirectMessagesByUserId(userId: number): Promise<DirectMessageWithUser[]> {
