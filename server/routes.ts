@@ -502,12 +502,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a message in a channel
+  // Create a message in a channel with media support
   app.post('/api/channels/:id/messages', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.id);
       const userId = (req.user as any).id;
-      const { content } = req.body;
+      const { content, messageType = 'text', mediaUrl, mediaType, mediaSize, replyToId } = req.body;
       
       if (!content || !content.trim()) {
         return res.status(400).json({ message: 'Message content is required' });
@@ -525,11 +525,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You are not a member of this channel' });
       }
       
-      // Create the message
+      // Create the message with enhanced properties
       const message = await storage.createMessage({
         content: content.trim(),
+        messageType,
+        mediaUrl,
+        mediaType,
+        mediaSize,
         userId,
-        channelId
+        channelId,
+        replyToId
       });
       
       // Broadcast to channel members via WebSocket
@@ -542,6 +547,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating channel message:', error);
       res.status(500).json({ message: 'Failed to create message' });
+    }
+  });
+
+  // Create a direct message with media support
+  app.post('/api/direct-messages/:id/messages', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const directMessageId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      const { content, messageType = 'text', mediaUrl, mediaType, mediaSize, replyToId } = req.body;
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: 'Message content is required' });
+      }
+      
+      // Get the direct message conversation
+      const dm = await storage.getDirectMessage(directMessageId);
+      if (!dm) {
+        return res.status(404).json({ message: 'Direct message conversation not found' });
+      }
+      
+      // Check if user is part of this conversation
+      if (dm.user1Id !== userId && dm.user2Id !== userId) {
+        return res.status(403).json({ message: 'You are not part of this conversation' });
+      }
+      
+      // Create the message
+      const message = await storage.createMessage({
+        content: content.trim(),
+        messageType,
+        mediaUrl,
+        mediaType,
+        mediaSize,
+        userId,
+        directMessageId,
+        replyToId
+      });
+      
+      // Broadcast to conversation participants via WebSocket
+      broadcastToDirectMessage(directMessageId, {
+        type: 'new_message',
+        message
+      });
+      
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error creating direct message:', error);
+      res.status(500).json({ message: 'Failed to create direct message' });
     }
   });
 
@@ -729,6 +781,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  });
+
+  // Call Management - Voice and Video Calls
+  app.post('/api/calls/initiate', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { callType, receiverId, channelId } = req.body;
+      
+      if (!['voice', 'video'].includes(callType)) {
+        return res.status(400).json({ message: 'Invalid call type' });
+      }
+      
+      // Direct call
+      if (receiverId) {
+        const receiver = await storage.getUser(receiverId);
+        if (!receiver) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Notify receiver via WebSocket
+        const receiverClients = clients.filter(c => c.userId === receiverId);
+        const initiator = await storage.getUser(userId);
+        
+        receiverClients.forEach(client => {
+          if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({
+              type: 'incoming_call',
+              callType,
+              from: initiator,
+              callId: `${userId}-${receiverId}-${Date.now()}`
+            }));
+          }
+        });
+        
+        res.json({ success: true, message: 'Call initiated' });
+      }
+      
+      // Channel call
+      if (channelId) {
+        const channel = await storage.getChannel(channelId);
+        if (!channel) {
+          return res.status(404).json({ message: 'Channel not found' });
+        }
+        
+        const isMember = await storage.isUserInChannel(userId, channelId);
+        if (!isMember) {
+          return res.status(403).json({ message: 'Not a channel member' });
+        }
+        
+        const initiator = await storage.getUser(userId);
+        broadcastToChannel(channelId, {
+          type: 'channel_call_started',
+          callType,
+          initiator,
+          channelId,
+          callId: `channel-${channelId}-${Date.now()}`
+        });
+        
+        res.json({ success: true, message: 'Channel call started' });
+      }
+    } catch (error) {
+      console.error('Call initiation error:', error);
+      res.status(500).json({ message: 'Failed to initiate call' });
+    }
+  });
+
+  // WebRTC Signaling
+  app.post('/api/calls/signal', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { targetUserId, signalData, callId } = req.body;
+      const userId = (req.user as any).id;
+      
+      const targetClients = clients.filter(c => c.userId === targetUserId);
+      targetClients.forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({
+            type: 'webrtc_signal',
+            from: userId,
+            signalData,
+            callId
+          }));
+        }
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Signaling error:', error);
+      res.status(500).json({ message: 'Failed to send signal' });
+    }
+  });
+
+  // Media upload endpoint
+  app.post('/api/upload', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      // In a real app, implement file upload with multer or similar
+      // For now, return a mock URL
+      const { filename, mimetype } = req.body;
+      
+      // Generate a mock URL - in production, use cloud storage
+      const mockUrl = `/uploads/${Date.now()}-${filename}`;
+      
+      res.json({ 
+        success: true, 
+        url: mockUrl,
+        mimetype 
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ message: 'Failed to upload file' });
+    }
+  });
+
+  // Message reactions
+  app.post('/api/messages/:id/react', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      const { emoji } = req.body;
+      
+      // In a real implementation, update message reactions in database
+      // For now, broadcast the reaction via WebSocket
+      const message = await storage.getMessage(messageId);
+      if (!message) {
+        return res.status(404).json({ message: 'Message not found' });
+      }
+      
+      // Broadcast reaction to appropriate channel or DM
+      const reactionData = {
+        type: 'message_reaction',
+        messageId,
+        userId,
+        emoji,
+        timestamp: new Date().toISOString()
+      };
+      
+      if (message.channelId) {
+        broadcastToChannel(message.channelId, reactionData);
+      } else if (message.directMessageId) {
+        broadcastToDirectMessage(message.directMessageId, reactionData);
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Reaction error:', error);
+      res.status(500).json({ message: 'Failed to add reaction' });
     }
   });
 

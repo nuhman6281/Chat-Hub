@@ -91,21 +91,34 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   members: many(channelMembers)
 }));
 
-// Message model
+// Enhanced Message model with media support
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
+  messageType: text("message_type").default("text").notNull(), // text, image, file, voice, video, system
+  mediaUrl: text("media_url"), // URL for media files
+  mediaType: text("media_type"), // image/png, audio/mp3, video/mp4, etc.
+  mediaSize: integer("media_size"), // file size in bytes
   userId: integer("user_id").notNull(),
   channelId: integer("channel_id"),
   directMessageId: integer("direct_message_id"),
+  replyToId: integer("reply_to_id"), // for threaded messages
+  isEdited: boolean("is_edited").default(false),
+  editedAt: timestamp("edited_at"),
+  reactions: text("reactions").array(), // JSON array of reactions
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertMessageSchema = createInsertSchema(messages).pick({
   content: true,
+  messageType: true,
+  mediaUrl: true,
+  mediaType: true,
+  mediaSize: true,
   userId: true,
   channelId: true,
   directMessageId: true,
+  replyToId: true,
 });
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
@@ -227,3 +240,68 @@ export type DirectMessageWithUser = DirectMessage & {
   otherUser: User;
   lastMessage?: MessageWithUser;
 };
+
+// Calls model for voice/video calls
+export const calls = pgTable("calls", {
+  id: serial("id").primaryKey(),
+  callType: text("call_type").notNull(), // voice, video
+  status: text("status").default("initiated").notNull(), // initiated, ringing, active, ended, missed
+  initiatorId: integer("initiator_id").notNull(),
+  receiverId: integer("receiver_id"), // for direct calls
+  channelId: integer("channel_id"), // for channel calls
+  startTime: timestamp("start_time").defaultNow().notNull(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // in seconds
+  recordingUrl: text("recording_url"), // if call was recorded
+});
+
+export const insertCallSchema = createInsertSchema(calls).pick({
+  callType: true,
+  initiatorId: true,
+  receiverId: true,
+  channelId: true,
+});
+
+export type InsertCall = z.infer<typeof insertCallSchema>;
+export type Call = typeof calls.$inferSelect;
+
+// Call participants for group calls
+export const callParticipants = pgTable("call_participants", {
+  id: serial("id").primaryKey(),
+  callId: integer("call_id").notNull(),
+  userId: integer("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  leftAt: timestamp("left_at"),
+  muted: boolean("muted").default(false),
+  videoEnabled: boolean("video_enabled").default(false),
+});
+
+export const insertCallParticipantSchema = createInsertSchema(callParticipants).pick({
+  callId: true,
+  userId: true,
+  muted: true,
+  videoEnabled: true,
+});
+
+export type InsertCallParticipant = z.infer<typeof insertCallParticipantSchema>;
+export type CallParticipant = typeof callParticipants.$inferSelect;
+
+// User status tracking
+export const userStatus = pgTable("user_status", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  status: text("status").default("offline").notNull(), // online, away, busy, do-not-disturb, offline
+  customMessage: text("custom_message"),
+  lastSeen: timestamp("last_seen").defaultNow().notNull(),
+  isInCall: boolean("is_in_call").default(false),
+});
+
+export const insertUserStatusSchema = createInsertSchema(userStatus).pick({
+  userId: true,
+  status: true,
+  customMessage: true,
+  isInCall: true,
+});
+
+export type InsertUserStatus = z.infer<typeof insertUserStatusSchema>;
+export type UserStatus = typeof userStatus.$inferSelect;
