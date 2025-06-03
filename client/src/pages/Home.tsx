@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthWrapper';
 import { useChat } from '@/contexts/ChatContext';
 import { useCall } from '@/contexts/CallContext';
 import { useToast } from '@/hooks/use-toast';

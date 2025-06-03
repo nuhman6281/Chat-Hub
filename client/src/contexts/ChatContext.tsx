@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useSocket } from '@/lib/socket';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
 
 // Define types for our chat messages and state

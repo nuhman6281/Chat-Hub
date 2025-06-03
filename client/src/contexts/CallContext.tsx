@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthWrapper';
 import { useChat } from '@/contexts/ChatContext';
 import { useSocket } from '@/lib/socket';
 import { useToast } from '@/hooks/use-toast';

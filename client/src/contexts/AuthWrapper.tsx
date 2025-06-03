@@ -1,7 +1,6 @@
-import React, { createContext, ReactNode, useContext, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery, useMutation, UseMutationResult } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { useQuery, useMutation, UseMutationResult, useQueryClient } from '@tanstack/react-query';
 
 // User interface that matches our server-side User type
 interface User {
@@ -38,9 +37,10 @@ interface AuthContextType {
 // Create the auth context
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-// Create the AuthProvider component
-export function AuthProvider({ children }: { children: ReactNode }) {
+// Create the AuthProvider component that uses React Query hooks
+function AuthProviderInner({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [authToken, setAuthToken] = useState<string | null>(
     localStorage.getItem('authToken')
   );
@@ -85,25 +85,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials)
+        body: JSON.stringify(credentials),
       });
+      
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Login failed');
       }
       return await res.json();
     },
-    onSuccess: (data) => {
-      // Save token and update query cache
+    onSuccess: (data: { user: User; token: string }) => {
+      // Store token and update query cache
       localStorage.setItem('authToken', data.token);
       setAuthToken(data.token);
       queryClient.setQueryData(['/api/auth/user'], data.user);
       
       toast({
-        title: 'Login successful',
-        description: `Welcome back, ${data.user.displayName}!`,
+        title: 'Welcome back!',
+        description: `Logged in as ${data.user.displayName}`,
       });
     },
     onError: (error: Error) => {
@@ -115,31 +116,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Register mutation
+  // Registration mutation
   const registerMutation = useMutation({
     mutationFn: async (credentials: RegistrationCredentials) => {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials)
+        body: JSON.stringify(credentials),
       });
+      
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Registration failed');
       }
       return await res.json();
     },
-    onSuccess: (data) => {
-      // Save token and update query cache
+    onSuccess: (data: { user: User; token: string }) => {
+      // Store token and update query cache
       localStorage.setItem('authToken', data.token);
       setAuthToken(data.token);
       queryClient.setQueryData(['/api/auth/user'], data.user);
       
       toast({
-        title: 'Registration successful',
-        description: `Welcome, ${data.user.displayName}!`,
+        title: 'Welcome!',
+        description: `Account created for ${data.user.displayName}`,
       });
     },
     onError: (error: Error) => {
@@ -207,6 +209,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+// Wrapper component that doesn't use React Query hooks
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return <AuthProviderInner>{children}</AuthProviderInner>;
 }
 
 // Custom hook to use the auth context
