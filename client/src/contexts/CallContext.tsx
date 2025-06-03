@@ -269,7 +269,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          callId: `call_${user?.id}_${Date.now()}`,
+          callId: currentCallId,
           accepted: true
         })
       });
@@ -296,7 +296,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify({
+          callId: currentCallId
+        })
       });
     } catch (error) {
       console.error('Failed to reject call:', error);
@@ -313,7 +316,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify({
+          callId: currentCallId
+        })
       });
     } catch (error) {
       console.error('Failed to end call:', error);
