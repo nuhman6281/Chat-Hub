@@ -38,6 +38,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import EnhancedMessageInput from '@/components/chat/EnhancedMessageInput';
 
 // Create workspace/channel form schemas
 const createWorkspaceSchema = z.object({
@@ -581,24 +582,29 @@ export default function HomePage() {
                 </ScrollArea>
               )}
               
-              {/* Message Input */}
+              {/* Enhanced Message Input */}
               {(activeChannel || activeDM) && (
                 <div className="p-4 border-t">
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
-                    <Input
-                      value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      placeholder={`Message ${
-                        activeChannel 
-                          ? `#${activeChannel.name}` 
-                          : activeDM?.otherUser.displayName
-                      }`}
-                      className="flex-1"
-                    />
-                    <Button type="submit" size="icon" disabled={!messageInput.trim()}>
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </form>
+                  <EnhancedMessageInput
+                    onSendMessage={(content, messageType = 'text', mediaFile) => {
+                      if (activeChannel) {
+                        sendMessage(content, activeChannel.id, undefined, messageType, mediaFile);
+                      } else if (activeDM) {
+                        sendMessage(content, undefined, activeDM.id, messageType, mediaFile);
+                      }
+                    }}
+                    onStartCall={(type) => {
+                      if (activeChannel || activeDM) {
+                        startCall(type);
+                      }
+                    }}
+                    placeholder={`Message ${
+                      activeChannel 
+                        ? `#${activeChannel.name}` 
+                        : activeDM?.otherUser.displayName
+                    }`}
+                    disabled={false}
+                  />
                 </div>
               )}
             </>

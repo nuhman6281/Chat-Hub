@@ -247,16 +247,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
   
   // Actions
-  const sendMessage = async (content: string): Promise<boolean> => {
+  const sendMessage = async (
+    content: string, 
+    channelId?: number, 
+    directMessageId?: number, 
+    messageType: string = 'text', 
+    mediaFile?: File
+  ): Promise<boolean> => {
     if (!user) return false;
     
     try {
-      // Determine if sending to channel or DM
-      if (activeChannel) {
+      let mediaUrl = null;
+      let mediaSize = null;
+      let mediaType = null;
+
+      // Handle file upload if present
+      if (mediaFile) {
+        const formData = new FormData();
+        formData.append('file', mediaFile);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          mediaUrl = uploadData.url;
+          mediaSize = mediaFile.size;
+          mediaType = mediaFile.type;
+        }
+      }
+
+      // Use provided IDs or fallback to active conversation
+      const targetChannelId = channelId || (activeChannel ? activeChannel.id : undefined);
+      const targetDMId = directMessageId || (activeDM ? activeDM.id : undefined);
+
+      if (targetChannelId) {
         // Channel message
         const result = send('message', {
           content,
-          channelId: activeChannel.id
+          channelId: targetChannelId,
+          messageType,
+          mediaUrl,
+          mediaType,
+          mediaSize
         });
         
         if (!result) {
@@ -268,11 +303,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
         
         return result;
-      } else if (activeDM) {
+      } else if (targetDMId) {
         // Direct message
         const result = send('message', {
           content,
-          directMessageId: activeDM.id
+          directMessageId: targetDMId,
+          messageType,
+          mediaUrl,
+          mediaType,
+          mediaSize
         });
         
         if (!result) {
@@ -443,6 +482,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     
     return null;
+  };
+
+  const startCall = async (type: 'audio' | 'video') => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch('/api/calls/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type,
+          channelId: activeChannel?.id,
+          directMessageId: activeDM?.id
+        })
+      });
+      
+      if (response.ok) {
+        const callData = await response.json();
+        toast({
+          title: `${type === 'audio' ? 'Audio' : 'Video'} call initiated`,
+          description: 'Connecting...'
+        });
+        
+        // Notify via WebSocket
+        send('call_initiated', {
+          callId: callData.id,
+          type,
+          channelId: activeChannel?.id,
+          directMessageId: activeDM?.id
+        });
+      } else {
+        toast({
+          title: 'Failed to start call',
+          description: 'Unable to initiate the call. Please try again.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error starting call:', error);
+      toast({
+        title: 'Call failed',
+        description: 'An error occurred while starting the call.',
+        variant: 'destructive'
+      });
+    }
   };
   
   return (

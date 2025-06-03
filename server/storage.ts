@@ -247,11 +247,20 @@ export class MemStorage implements IStorage {
     const id = this.messageId++;
     const now = new Date();
     const message: Message = { 
-      ...insertMessage, 
       id, 
-      createdAt: now,
+      content: insertMessage.content,
+      userId: insertMessage.userId,
       channelId: insertMessage.channelId || null,
-      directMessageId: insertMessage.directMessageId || null
+      directMessageId: insertMessage.directMessageId || null,
+      createdAt: now,
+      messageType: insertMessage.messageType || 'text',
+      mediaUrl: insertMessage.mediaUrl || null,
+      mediaType: insertMessage.mediaType || null,
+      mediaSize: insertMessage.mediaSize || null,
+      replyToId: insertMessage.replyToId || null,
+      isEdited: false,
+      editedAt: null,
+      reactions: null
     };
     this.messages.set(id, message);
 
