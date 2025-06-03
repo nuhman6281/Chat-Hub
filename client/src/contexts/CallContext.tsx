@@ -112,12 +112,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallAnswered = (payload: any) => {
-      console.log('Call answered:', payload);
+      console.log('CallContext: Call answered event received:', payload);
       stopRingtone();
       setOutgoingCall(false);
       setIncomingCall(false);
       setShowIncomingCall(false);
       setActiveCall(true);
+      setIsInCall(true);
       toast({
         title: 'Call answered',
         description: 'Call connected'
@@ -125,7 +126,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallRejected = (payload: any) => {
-      console.log('Call rejected:', payload);
+      console.log('CallContext: Call rejected event received:', payload);
       stopRingtone();
       resetCallState();
       toast({
@@ -135,7 +136,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallEnded = (payload: any) => {
-      console.log('Call ended:', payload);
+      console.log('CallContext: Call ended event received:', payload);
       stopRingtone();
       resetCallState();
       toast({
