@@ -166,21 +166,13 @@ export default function Home() {
 
   const renderConnectionStatus = () => {
     const getStatusColor = () => {
-      switch (connectionStatus) {
-        case 'connected': return 'text-green-500';
-        case 'connecting': return 'text-yellow-500';
-        case 'disconnected': return 'text-red-500';
-        default: return 'text-gray-500';
-      }
+      if (isConnected) return 'text-green-500';
+      return 'text-red-500';
     };
 
     const getStatusText = () => {
-      switch (connectionStatus) {
-        case 'connected': return 'Connected';
-        case 'connecting': return 'Connecting...';
-        case 'disconnected': return 'Disconnected';
-        default: return 'Unknown';
-      }
+      if (isConnected) return 'Connected';
+      return 'Disconnected';
     };
 
     return (
@@ -383,9 +375,9 @@ export default function Home() {
                     {directMessages.map(dm => (
                       <Button
                         key={dm.id}
-                        variant={activeDirectMessage?.id === dm.id ? 'secondary' : 'ghost'}
+                        variant={activeDM?.id === dm.id ? 'secondary' : 'ghost'}
                         className="w-full justify-start h-8 px-2"
-                        onClick={() => setActiveDirectMessage(dm)}
+                        onClick={() => setActiveDM(dm)}
                       >
                         <User className="mr-2 h-4 w-4 text-muted-foreground" />
                         <span className="truncate text-sm">{dm.otherUser.displayName}</span>
@@ -449,35 +441,35 @@ export default function Home() {
             </div>
           )}
           
-          {activeDirectMessage && (
+          {activeDM && (
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-muted-foreground" />
-              <h1 className="text-lg font-semibold">{activeDirectMessage.otherUser.displayName}</h1>
+              <h1 className="text-lg font-semibold">{activeDM.otherUser.displayName}</h1>
             </div>
           )}
           
-          {!activeChannel && !activeDirectMessage && (
+          {!activeChannel && !activeDM && (
             <h1 className="text-lg font-semibold">Welcome to ChatHub</h1>
           )}
           
           <div className="ml-auto flex items-center gap-2">
-            {(activeChannel || activeDirectMessage) && (
+            {(activeChannel || activeDM) && (
               <>
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  onClick={() => initiateCall(1, 'audio')}
-                  disabled={isInitiating}
+                  onClick={() => activeDM && initiateCall(activeDM.otherUser.id, 'audio')}
+                  title="Start audio call"
                 >
-                  {isInitiating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                  <Phone className="h-4 w-4" />
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="icon"
-                  onClick={() => initiateCall(1, 'video')}
-                  disabled={isInitiating}
+                  onClick={() => activeDM && initiateCall(activeDM.otherUser.id, 'video')}
+                  title="Start video call"
                 >
-                  {isInitiating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                  <Video className="h-4 w-4" />
                 </Button>
                 
                 {/* User Management Buttons */}
@@ -518,7 +510,7 @@ export default function Home() {
         
         {/* Messages Area */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {(activeChannel || activeDirectMessage) ? (
+          {(activeChannel || activeDM) ? (
             <>
               <ScrollArea className="flex-1 px-6 py-4">
                 <div className="space-y-4">
@@ -552,7 +544,7 @@ export default function Home() {
                   placeholder={
                     activeChannel 
                       ? `Message #${activeChannel.name}` 
-                      : `Message ${activeDirectMessage?.otherUser.displayName}`
+                      : `Message ${activeDM?.otherUser.displayName}`
                   }
                 />
               </div>
