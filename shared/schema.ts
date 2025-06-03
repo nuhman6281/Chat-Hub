@@ -46,6 +46,8 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
   name: true,
   ownerId: true,
   iconText: true,
+}).extend({
+  iconText: z.string().optional().default("W")
 });
 
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;

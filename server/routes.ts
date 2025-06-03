@@ -422,13 +422,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/workspaces', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const validatedData = insertWorkspaceSchema.parse({
-        ...req.body,
-        ownerId: (req.user as any).id
+        name: req.body.name,
+        ownerId: (req.user as any).id,
+        iconText: req.body.iconText || req.body.name?.charAt(0)?.toUpperCase() || "W"
       });
       
       const workspace = await storage.createWorkspace(validatedData);
+      
+      // Add the creator as a workspace member
+      await storage.addWorkspaceMember({
+        workspaceId: workspace.id,
+        userId: (req.user as any).id,
+        role: 'admin'
+      });
+      
       res.status(201).json(workspace);
     } catch (error) {
+      console.error('Workspace creation error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid workspace data', errors: error.errors });
       }
