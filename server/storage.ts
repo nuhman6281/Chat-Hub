@@ -82,7 +82,7 @@ export class MemStorage implements IStorage {
   private workspaceMemberId: number = 1;
   private channelMemberId: number = 1;
 
-  sessionStore: session.SessionStore;
+  sessionStore: any;
 
   constructor() {
     this.users = new Map();
@@ -129,6 +129,7 @@ export class MemStorage implements IStorage {
       id: 1,
       name: "general",
       workspaceId: 1,
+      description: null,
       isPrivate: false,
       createdAt: new Date()
     };
@@ -195,10 +196,12 @@ export class MemStorage implements IStorage {
     const id = this.channelId++;
     const now = new Date();
     const channel: Channel = { 
-      ...insertChannel, 
       id, 
-      createdAt: now,
-      isPrivate: insertChannel.isPrivate || false 
+      name: insertChannel.name,
+      workspaceId: insertChannel.workspaceId,
+      description: insertChannel.description || null,
+      isPrivate: insertChannel.isPrivate || false,
+      createdAt: now
     };
     this.channels.set(id, channel);
     return channel;
@@ -467,7 +470,7 @@ export class MemStorage implements IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.SessionStore;
+  sessionStore: any;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({ 

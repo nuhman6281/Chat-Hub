@@ -30,7 +30,7 @@ function Router() {
       <Switch>
         <ProtectedRoute path="/" component={HomePage} />
         <Route path="/auth" component={AuthPage} />
-        <Route path="/demo" component={TestDemo} />
+
         <Route component={NotFound} />
       </Switch>
     </Suspense>
