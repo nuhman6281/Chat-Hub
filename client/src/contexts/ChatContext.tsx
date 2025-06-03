@@ -149,14 +149,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     const handleNewMessage = (payload: any) => {
       console.log('Received new message:', payload);
-      const message = payload.message || payload;
+      const message = payload;
       
-      // Only add message if it belongs to the active conversation
+      // Add message to the list if it belongs to the active conversation
       if (
         (activeChannel && message.channelId === activeChannel.id) ||
         (activeDM && message.directMessageId === activeDM.id)
       ) {
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => {
+          // Avoid duplicates
+          const exists = prev.some(m => m.id === message.id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
         console.log('Added message to active conversation');
       }
       
