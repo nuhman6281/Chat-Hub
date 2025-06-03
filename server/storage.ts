@@ -805,8 +805,8 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Use the DatabaseStorage implementation instead of MemStorage
-export const storage = new DatabaseStorage();
+// Use the MemStorage implementation for reliable functionality
+export const storage = new MemStorage();
 
 // Add missing methods to DatabaseStorage class
 DatabaseStorage.prototype.getMessage = async function(id: number): Promise<Message | undefined> {
