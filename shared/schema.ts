@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   status: text("status").default("offline").notNull(),
   avatarUrl: text("avatar_url"),
+  publicKey: text("public_key"), // For end-to-end encryption
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -91,7 +92,7 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   members: many(channelMembers)
 }));
 
-// Enhanced Message model with media support
+// Enhanced Message model with media support and encryption
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
@@ -106,6 +107,11 @@ export const messages = pgTable("messages", {
   isEdited: boolean("is_edited").default(false),
   editedAt: timestamp("edited_at"),
   reactions: text("reactions").array(), // JSON array of reactions
+  // Encryption fields
+  isEncrypted: boolean("is_encrypted").default(false),
+  encryptedContent: text("encrypted_content"), // Encrypted message content
+  nonce: text("nonce"), // Encryption nonce
+  senderPublicKey: text("sender_public_key"), // Sender's public key for verification
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -119,6 +125,10 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   channelId: true,
   directMessageId: true,
   replyToId: true,
+  isEncrypted: true,
+  encryptedContent: true,
+  nonce: true,
+  senderPublicKey: true,
 });
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;

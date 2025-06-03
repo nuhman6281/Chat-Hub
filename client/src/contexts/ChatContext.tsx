@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
+import { encryptionService } from '@/lib/encryption';
 
 // Define types for our chat messages and state
 export interface Message {
