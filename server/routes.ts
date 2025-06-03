@@ -1253,6 +1253,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Message reactions
+  // Message search endpoint
+  app.get('/api/search/messages', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { q: query } = req.query;
+      const userId = (req.user as any).id;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: 'Query parameter is required' });
+      }
+      
+      const searchResults = await storage.searchMessages(query, userId);
+      res.json(searchResults);
+    } catch (error) {
+      console.error('Search error:', error);
+      res.status(500).json({ message: 'Search failed' });
+    }
+  });
+
+  // Message thread endpoints
+  app.get('/api/messages/:id/thread', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      
+      // Get the parent message to verify access
+      const parentMessage = await storage.getMessageById(messageId);
+      if (!parentMessage) {
+        return res.status(404).json({ message: 'Message not found' });
+      }
+      
+      // Check if user has access to this message
+      if (parentMessage.channelId) {
+        const hasAccess = await storage.isUserInChannel(userId, parentMessage.channelId);
+        if (!hasAccess) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      } else if (parentMessage.directMessageId) {
+        const dm = await storage.getDirectMessage(parentMessage.directMessageId);
+        if (!dm || (dm.user1Id !== userId && dm.user2Id !== userId)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      
+      const threadMessages = await storage.getThreadMessages(messageId);
+      res.json(threadMessages);
+    } catch (error) {
+      console.error('Thread fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch thread messages' });
+    }
+  });
+
+  // Message reactions endpoint
   app.post('/api/messages/:id/react', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const messageId = parseInt(req.params.id);
