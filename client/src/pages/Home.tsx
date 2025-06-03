@@ -13,8 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useChat } from '@/contexts/ChatContext';
-import { useCall } from '@/contexts/CallContext';
 import { useToast } from '@/hooks/use-toast';
+import { CallModal } from '@/components/ui/call-modal';
 import { Loader2, Menu, Send, Plus, Hash, LogOut, User, Users, MessageSquare, Phone, Video } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area-fixed';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -57,7 +57,7 @@ type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
 type CreateChannelValues = z.infer<typeof createChannelSchema>;
 
 export default function Home() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { 
     workspaces, 
     activeWorkspace, 
@@ -66,16 +66,20 @@ export default function Home() {
     activeChannel, 
     setActiveChannel,
     directMessages = [],
-    activeDirectMessage = null,
-    setActiveDirectMessage = () => {},
+    activeDM = null,
+    setActiveDM = () => {},
     messages, 
     sendMessage, 
     isConnected,
-    connectionStatus = 'connected',
     createWorkspace,
-    createChannel
+    createChannel,
+    currentCall,
+    isCallModalOpen,
+    initiateCall,
+    answerCall,
+    hangupCall,
+    setIsCallModalOpen
   } = useChat();
-  const { initiateCall, isInitiating } = useCall();
   const { toast } = useToast();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -590,6 +594,15 @@ export default function Home() {
             description: `${user.displayName} has been created successfully`,
           });
         }}
+      />
+
+      {/* Call Modal */}
+      <CallModal
+        isOpen={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        callData={currentCall}
+        onAnswer={answerCall}
+        onHangup={hangupCall}
       />
     </div>
   );

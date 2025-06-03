@@ -185,7 +185,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user, isConnected]);
   
-  // Listen for new messages via WebSocket
+  // Listen for WebSocket events
   useEffect(() => {
     if (!isConnected) return;
     
@@ -234,11 +234,72 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         );
       }
     };
+
+    // Handle incoming calls
+    const handleIncomingCall = (payload: any) => {
+      console.log('Received incoming call:', payload);
+      setCurrentCall({
+        callId: payload.callId,
+        callType: payload.callType,
+        isIncoming: true,
+        user: payload.from
+      });
+      setIsCallModalOpen(true);
+      
+      toast({
+        title: 'Incoming call',
+        description: `${payload.from.displayName} is calling you`,
+        duration: 5000
+      });
+    };
+
+    // Handle call status updates
+    const handleCallAccepted = (payload: any) => {
+      toast({
+        title: 'Call accepted',
+        description: `${payload.by.displayName} accepted your call`
+      });
+    };
+
+    const handleCallRejected = (payload: any) => {
+      toast({
+        title: 'Call declined',
+        description: `${payload.by.displayName} declined your call`
+      });
+      setCurrentCall(null);
+      setIsCallModalOpen(false);
+    };
+
+    const handleCallEnded = (payload: any) => {
+      toast({
+        title: 'Call ended',
+        description: `Call ended by ${payload.endedBy.displayName}`
+      });
+      setCurrentCall(null);
+      setIsCallModalOpen(false);
+    };
+
+    const handleCallRinging = (payload: any) => {
+      toast({
+        title: 'Ringing',
+        description: `Calling ${payload.to.displayName}...`
+      });
+    };
     
-    const unsubscribe = on('new_message', handleNewMessage);
+    const unsubscribeMessage = on('new_message', handleNewMessage);
+    const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
+    const unsubscribeCallAccepted = on('call_accepted', handleCallAccepted);
+    const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
+    const unsubscribeCallEnded = on('call_ended', handleCallEnded);
+    const unsubscribeCallRinging = on('call_ringing', handleCallRinging);
     
     return () => {
-      unsubscribe();
+      unsubscribeMessage();
+      unsubscribeIncomingCall();
+      unsubscribeCallAccepted();
+      unsubscribeCallRejected();
+      unsubscribeCallEnded();
+      unsubscribeCallRinging();
     };
   }, [isConnected, activeChannel, activeDM, on]);
   
@@ -580,7 +641,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const startCall = async (type: 'audio' | 'video') => {
+  // Call action handlers
+  const initiateCall = async (targetUserId: number, callType: 'audio' | 'video') => {
     if (!user) return;
     
     try {
@@ -590,30 +652,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          type,
-          channelId: activeChannel?.id,
-          directMessageId: activeDM?.id
+          targetUserId,
+          callType
         })
       });
       
       if (response.ok) {
         const callData = await response.json();
-        toast({
-          title: `${type === 'audio' ? 'Audio' : 'Video'} call initiated`,
-          description: 'Connecting...'
-        });
         
-        // Notify via WebSocket
-        send('call_initiated', {
-          callId: callData.id,
-          type,
-          channelId: activeChannel?.id,
-          directMessageId: activeDM?.id
+        // Set up outgoing call state
+        setCurrentCall({
+          callId: callData.callId,
+          callType: callType === 'audio' ? 'voice' : callType,
+          isIncoming: false,
+          user: callData.receiver
+        });
+        setIsCallModalOpen(true);
+        
+        toast({
+          title: `${callType === 'audio' ? 'Audio' : 'Video'} call initiated`,
+          description: `Calling ${callData.receiver.displayName}...`
         });
       } else {
+        const error = await response.json();
         toast({
           title: 'Failed to start call',
-          description: 'Unable to initiate the call. Please try again.',
+          description: error.message || 'Unable to initiate the call.',
           variant: 'destructive'
         });
       }
@@ -624,6 +688,76 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         description: 'An error occurred while starting the call.',
         variant: 'destructive'
       });
+    }
+  };
+
+  const answerCall = async (accepted: boolean) => {
+    if (!currentCall) return;
+    
+    try {
+      const response = await fetch('/api/calls/answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          callId: currentCall.callId,
+          accepted
+        })
+      });
+      
+      if (response.ok) {
+        if (!accepted) {
+          setCurrentCall(null);
+          setIsCallModalOpen(false);
+          toast({
+            title: 'Call declined',
+            description: 'You declined the call.'
+          });
+        }
+      } else {
+        toast({
+          title: 'Failed to respond to call',
+          description: 'Unable to respond to the call.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error answering call:', error);
+      toast({
+        title: 'Call error',
+        description: 'An error occurred while responding to the call.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const hangupCall = async () => {
+    if (!currentCall) return;
+    
+    try {
+      const response = await fetch('/api/calls/hangup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          callId: currentCall.callId
+        })
+      });
+      
+      if (response.ok) {
+        setCurrentCall(null);
+        setIsCallModalOpen(false);
+        toast({
+          title: 'Call ended',
+          description: 'The call has been ended.'
+        });
+      }
+    } catch (error) {
+      console.error('Error hanging up call:', error);
+      setCurrentCall(null);
+      setIsCallModalOpen(false);
     }
   };
   
@@ -648,7 +782,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         createChannel,
         createWorkspace,
         startDirectMessage,
-        startCall
+        // Call functionality
+        currentCall,
+        isCallModalOpen,
+        initiateCall,
+        answerCall,
+        hangupCall,
+        setIsCallModalOpen
       }}
     >
       {children}
