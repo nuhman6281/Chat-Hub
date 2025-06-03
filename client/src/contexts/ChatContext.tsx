@@ -494,6 +494,17 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const setActiveChannel = async (channel: Channel | null) => {
+    // If we're already on this channel, don't do anything
+    if (channel && currentChannel && channel.id === currentChannel.id) {
+      console.log(`Already on channel ${channel.id}, skipping activation`);
+      return;
+    }
+
+    console.log(
+      `Setting active channel: ${channel?.id || "null"} (previous: ${
+        currentChannel?.id || "null"
+      })`
+    );
     setCurrentChannel(channel);
 
     // Automatically join the channel if it's not null
@@ -516,7 +527,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
 
+    // Keep track of join attempts to prevent excessive API calls
+    const joinAttemptKey = `join-attempt-${channelId}`;
+    const lastAttempt = sessionStorage.getItem(joinAttemptKey);
+    const now = Date.now();
+
+    // If we've tried to join this channel in the last 5 seconds, skip this attempt
+    if (lastAttempt && now - parseInt(lastAttempt) < 5000) {
+      console.log(`Skipping join attempt for channel ${channelId} (throttled)`);
+      return;
+    }
+
+    // Record this join attempt
+    sessionStorage.setItem(joinAttemptKey, now.toString());
+
     try {
+      console.log(
+        `Attempting to join channel ${channelId} for user ${user.id}`
+      );
       const response = await fetch(`/api/channels/${channelId}/join`, {
         method: "POST",
         headers: {
@@ -526,11 +554,21 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
       if (response.status === 400) {
         // Already a member, that's fine
+        console.log(
+          `User ${user.id} is already a member of channel ${channelId}`
+        );
         return;
       }
 
       if (!response.ok) {
-        throw new Error(`Failed to join channel: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(
+          `Failed to join channel: ${response.statusText}`,
+          errorText
+        );
+        throw new Error(
+          `Failed to join channel: ${response.statusText} - ${errorText}`
+        );
       }
 
       console.log(`Successfully joined channel ${channelId}`);

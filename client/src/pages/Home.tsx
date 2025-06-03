@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -124,43 +124,241 @@ export default function HomePage() {
   const [selectedWorkspaceForSettings, setSelectedWorkspaceForSettings] =
     useState<Workspace | null>(null);
 
-  // Handle routing - set active components based on URL parameters
+  // Add refs to track previous route params to prevent unnecessary navigation
+  const prevParamsRef = useRef<{
+    workspaceId: number | null;
+    channelId: number | null;
+    userId: number | null;
+  }>({ workspaceId: null, channelId: null, userId: null });
+
+  // Create a stable navigation function using useCallback to prevent excessive re-renders
+  const navigateToResource = useCallback(
+    (path: string) => {
+      // Don't replace URLs when navigating between workspaces
+      // This allows the browser history to work properly
+      const navigateOptions = { replace: false };
+
+      // For hash-based routing, we need to compare with location.hash (without the # character)
+      const currentPath = location.hash.replace("#", "");
+
+      // Check if we're already at this path to avoid unnecessary navigation
+      if (currentPath !== path) {
+        // Check for potential navigation loops
+        const lastPath = sessionStorage.getItem("lastNavPath");
+        const navCount = parseInt(
+          sessionStorage.getItem("navLoopCount") || "0"
+        );
+
+        if (lastPath === path && navCount > 2) {
+          console.log(
+            `Navigation loop detected to ${path}, cancelling navigation`
+          );
+          // Reset the navigation tracking to break the loop
+          sessionStorage.removeItem("lastNavPath");
+          sessionStorage.removeItem("navLoopCount");
+          return;
+        }
+
+        // Update navigation tracking
+        sessionStorage.setItem("lastNavPath", path);
+        if (lastPath === path) {
+          sessionStorage.setItem("navLoopCount", (navCount + 1).toString());
+        } else {
+          sessionStorage.setItem("navLoopCount", "1");
+        }
+
+        console.log(`Navigating to: ${path} (from ${currentPath})`);
+        navigate(path, navigateOptions);
+      } else {
+        console.log(`Already at ${currentPath}, skipping navigation`);
+      }
+    },
+    [navigate, location.hash]
+  );
+
+  // Update URL when active components change
+  useEffect(() => {
+    // Don't update URL during initial load
+    if (!workspaces.length) return;
+
+    // Get current params
+    const currentWorkspaceId = activeWorkspace?.id || null;
+    const currentChannelId = activeChannel?.id || null;
+    const currentUserId = activeDM?.otherUser.id || null;
+
+    // Check if params have changed to prevent unnecessary navigation
+    const paramsChanged =
+      currentWorkspaceId !== prevParamsRef.current.workspaceId ||
+      currentChannelId !== prevParamsRef.current.channelId ||
+      currentUserId !== prevParamsRef.current.userId;
+
+    // Only navigate if params have changed
+    if (paramsChanged) {
+      // Update the refs with current values
+      prevParamsRef.current = {
+        workspaceId: currentWorkspaceId,
+        channelId: currentChannelId,
+        userId: currentUserId,
+      };
+
+      // Check if this update was triggered by a URL change
+      // If the current URL already matches what we want to navigate to, don't navigate
+      let targetUrl = "";
+      if (activeWorkspace && activeChannel) {
+        targetUrl = `/workspace/${activeWorkspace.id}/channel/${activeChannel.id}`;
+      } else if (activeWorkspace && activeDM) {
+        targetUrl = `/workspace/${activeWorkspace.id}/direct/${activeDM.otherUser.id}`;
+      } else if (activeWorkspace) {
+        targetUrl = `/workspace/${activeWorkspace.id}`;
+      }
+
+      // For hash-based routing, we need to compare with location.hash (without the # character)
+      const currentPath = location.hash.replace("#", "");
+
+      // Don't navigate if we're already at this URL (this breaks the circular dependency)
+      if (currentPath === targetUrl) {
+        console.log(`Already at ${targetUrl}, skipping navigation`);
+        return;
+      }
+
+      // Check if we're in a navigation loop
+      const isNavigationLoop =
+        sessionStorage.getItem("lastNavPath") === targetUrl &&
+        parseInt(sessionStorage.getItem("navLoopCount") || "0") > 3;
+
+      if (isNavigationLoop) {
+        console.log(`Preventing navigation loop to: ${targetUrl}`);
+        // Clear the navigation tracking to break out of the loop completely
+        sessionStorage.removeItem("lastNavPath");
+        sessionStorage.removeItem("navLoopCount");
+        return;
+      }
+
+      // Use a flag in sessionStorage to indicate this state change was triggered by URL
+      const isFromUrlChange =
+        sessionStorage.getItem("fromUrlChange") === "true";
+      if (isFromUrlChange) {
+        // If this state change was triggered by URL, don't navigate back
+        console.log("State change was from URL, not navigating");
+        sessionStorage.removeItem("fromUrlChange");
+        return;
+      }
+
+      // Navigate if we have a valid URL
+      if (targetUrl && currentPath !== targetUrl) {
+        console.log(`State changed, navigating to: ${targetUrl}`);
+        navigateToResource(targetUrl);
+      }
+    }
+  }, [
+    activeWorkspace,
+    activeChannel,
+    activeDM,
+    workspaces.length,
+    navigateToResource,
+    location.hash,
+  ]);
+
+  // Modify the first useEffect to set a flag when it updates state from URL
   useEffect(() => {
     // Process route parameters to restore state on page load
     const loadFromUrlParams = async () => {
       try {
+        // Check if this is a direct navigation (from click handlers)
+        const isDirectNavigation =
+          sessionStorage.getItem("directNavigation") === "true";
+        if (isDirectNavigation) {
+          console.log(
+            "Direct navigation detected, skipping URL parameter processing"
+          );
+          sessionStorage.removeItem("directNavigation");
+          return;
+        }
+
+        // Set a flag to indicate we're updating state from URL
+        sessionStorage.setItem("fromUrlChange", "true");
+
         // If we have a workspace ID in the URL
         if (params.workspaceId && workspaces.length > 0) {
           const workspaceId = parseInt(params.workspaceId);
           const workspace = workspaces.find((w) => w.id === workspaceId);
 
-          if (
+          // Store the current URL to detect if we're in a navigation loop
+          const currentPath = location.hash.replace("#", "");
+          const isNavigationLoop =
+            sessionStorage.getItem("lastNavPath") === currentPath &&
+            sessionStorage.getItem("navLoopCount")
+              ? parseInt(sessionStorage.getItem("navLoopCount") || "0") > 3
+              : false;
+
+          if (isNavigationLoop) {
+            console.log(
+              `Detected navigation loop for path: ${currentPath}, breaking loop`
+            );
+            sessionStorage.removeItem("lastNavPath");
+            sessionStorage.removeItem("navLoopCount");
+            return;
+          }
+
+          // Update navigation tracking
+          if (sessionStorage.getItem("lastNavPath") === currentPath) {
+            const count =
+              parseInt(sessionStorage.getItem("navLoopCount") || "0") + 1;
+            sessionStorage.setItem("navLoopCount", count.toString());
+          } else {
+            sessionStorage.setItem("lastNavPath", currentPath);
+            sessionStorage.setItem("navLoopCount", "1");
+          }
+
+          // Only update if the workspace is different from the active one
+          const shouldUpdateWorkspace =
             workspace &&
-            (!activeWorkspace || activeWorkspace.id !== workspaceId)
-          ) {
+            (!activeWorkspace || activeWorkspace.id !== workspaceId);
+
+          if (shouldUpdateWorkspace) {
+            console.log(`Setting workspace from URL: ${workspace?.id}`);
             setActiveWorkspace(workspace);
+          } else {
+            console.log(
+              `Workspace already active or not found: ${workspaceId}`
+            );
+          }
 
-            // If we have a channel ID
-            if (params.channelId && channels.length > 0) {
-              const channelId = parseInt(params.channelId);
-              const channel = channels.find((c) => c.id === channelId);
+          // If we have a channel ID
+          if (params.channelId && channels.length > 0) {
+            const channelId = parseInt(params.channelId);
+            const channel = channels.find((c) => c.id === channelId);
 
-              if (channel) {
-                setActiveChannel(channel);
-                setActiveDM(null); // Ensure DM is not active
-                setActiveTab("channels");
-              }
+            // Only update if the channel is different from the active one
+            const shouldUpdateChannel =
+              channel && (!activeChannel || activeChannel.id !== channelId);
+
+            if (shouldUpdateChannel) {
+              console.log(`Setting channel from URL: ${channel?.id}`);
+              // We'll manually set the channel without auto-joining
+              // This avoids the infinite loop of join attempts
+              setActiveChannel(channel);
+              setActiveDM(null); // Ensure DM is not active
+              setActiveTab("channels");
+            } else {
+              console.log(`Channel already active or not found: ${channelId}`);
             }
-            // If we have a direct message user ID
-            else if (params.userId && directMessages.length > 0) {
-              const userId = parseInt(params.userId);
-              const dm = directMessages.find((d) => d.otherUser.id === userId);
+          }
+          // If we have a direct message user ID
+          else if (params.userId && directMessages.length > 0) {
+            const userId = parseInt(params.userId);
+            const dm = directMessages.find((d) => d.otherUser.id === userId);
 
-              if (dm) {
-                setActiveDM(dm);
-                setActiveChannel(null); // Ensure channel is not active
-                setActiveTab("direct");
-              }
+            // Only update if the DM is different from the active one
+            const shouldUpdateDM = dm && (!activeDM || activeDM.id !== dm.id);
+
+            if (shouldUpdateDM) {
+              console.log(`Setting DM from URL: ${dm?.id}`);
+              setActiveDM(dm);
+              setActiveChannel(null); // Ensure channel is not active
+              setActiveTab("direct");
+            } else {
+              console.log(`DM already active or not found: ${userId}`);
             }
           }
         }
@@ -175,34 +373,16 @@ export default function HomePage() {
     workspaces,
     channels,
     directMessages,
+    // We need these to check if we should update
     activeWorkspace,
     activeChannel,
     activeDM,
+    setActiveWorkspace,
+    setActiveChannel,
+    setActiveDM,
+    setActiveTab,
+    location.hash,
   ]);
-
-  // Update URL when active components change
-  useEffect(() => {
-    // Don't update URL during initial load
-    if (!workspaces.length) return;
-
-    // Don't replace URLs when navigating between workspaces
-    // This allows the browser history to work properly
-    const navigateOptions = { replace: false };
-
-    if (activeWorkspace && activeChannel) {
-      navigate(
-        `/workspace/${activeWorkspace.id}/channel/${activeChannel.id}`,
-        navigateOptions
-      );
-    } else if (activeWorkspace && activeDM) {
-      navigate(
-        `/workspace/${activeWorkspace.id}/direct/${activeDM.otherUser.id}`,
-        navigateOptions
-      );
-    } else if (activeWorkspace) {
-      navigate(`/workspace/${activeWorkspace.id}`, navigateOptions);
-    }
-  }, [activeWorkspace, activeChannel, activeDM, workspaces.length, navigate]);
 
   // Form for creating a workspace
   const workspaceForm = useForm<CreateWorkspaceValues>({
@@ -428,7 +608,54 @@ export default function HomePage() {
                         className={`flex-1 justify-start h-10 ${
                           !sidebarOpen && "justify-center p-2"
                         }`}
-                        onClick={() => setActiveWorkspace(workspace)}
+                        onClick={() => {
+                          // Don't do anything if this workspace is already active
+                          if (activeWorkspace?.id === workspace.id) {
+                            console.log(
+                              `Workspace ${workspace.id} already active, ignoring click`
+                            );
+                            return;
+                          }
+
+                          console.log(
+                            `Workspace button clicked: ${workspace.id}`
+                          );
+
+                          // Important: Clear the fromUrlChange flag to allow navigation
+                          sessionStorage.removeItem("fromUrlChange");
+
+                          // Set direct navigation flag
+                          sessionStorage.setItem("directNavigation", "true");
+
+                          // Reset navigation loop detection for this action
+                          sessionStorage.removeItem("lastNavPath");
+                          sessionStorage.removeItem("navLoopCount");
+
+                          // Directly set the workspace without relying on URL navigation
+                          setActiveWorkspace(workspace);
+
+                          // Clear any channel/DM selection to prevent conflicts
+                          setActiveChannel(null);
+                          setActiveDM(null);
+
+                          // Find the first channel in this workspace if available
+                          const workspaceChannels = channels.filter(
+                            (c) => c.workspaceId === workspace.id
+                          );
+
+                          let targetUrl = `/workspace/${workspace.id}`;
+
+                          // If we have channels in this workspace, navigate to the first one
+                          if (workspaceChannels.length > 0) {
+                            const firstChannel = workspaceChannels[0];
+                            setActiveChannel(firstChannel);
+                            targetUrl = `/workspace/${workspace.id}/channel/${firstChannel.id}`;
+                          }
+
+                          // Force navigation to the workspace URL
+                          console.log(`Directly navigating to: ${targetUrl}`);
+                          navigate(targetUrl, { replace: false });
+                        }}
                       >
                         <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center mr-3 flex-shrink-0">
                           <span className="font-medium text-primary">
@@ -598,7 +825,42 @@ export default function HomePage() {
                               : "ghost"
                           }
                           className="w-full justify-start h-8 px-2"
-                          onClick={() => setActiveChannel(channel)}
+                          onClick={() => {
+                            // Don't do anything if this channel is already active
+                            if (activeChannel?.id === channel.id) {
+                              console.log(
+                                `Channel ${channel.id} already active, ignoring click`
+                              );
+                              return;
+                            }
+
+                            console.log(
+                              `Channel button clicked: ${channel.id}`
+                            );
+
+                            // Important: Clear the fromUrlChange flag to allow navigation
+                            sessionStorage.removeItem("fromUrlChange");
+
+                            // Set direct navigation flag
+                            sessionStorage.setItem("directNavigation", "true");
+
+                            // Reset navigation loop detection
+                            sessionStorage.removeItem("lastNavPath");
+                            sessionStorage.removeItem("navLoopCount");
+
+                            // Directly set the channel
+                            setActiveChannel(channel);
+                            setActiveDM(null);
+
+                            // Force navigation to the channel URL if we have an active workspace
+                            if (activeWorkspace) {
+                              const targetUrl = `/workspace/${activeWorkspace.id}/channel/${channel.id}`;
+                              console.log(
+                                `Directly navigating to: ${targetUrl}`
+                              );
+                              navigate(targetUrl, { replace: false });
+                            }
+                          }}
                         >
                           <Hash className="mr-2 h-4 w-4 text-muted-foreground" />
                           <span className="truncate text-sm">
@@ -632,16 +894,41 @@ export default function HomePage() {
                             }
                             className="w-full justify-start h-8 px-2"
                             onClick={() => {
+                              // Don't do anything if this DM is already active
+                              if (activeDM?.id === dm.id) {
+                                console.log(
+                                  `DM ${dm.id} already active, ignoring click`
+                                );
+                                return;
+                              }
+
+                              console.log(`DM button clicked: ${dm.id}`);
+
+                              // Important: Clear the fromUrlChange flag to allow navigation
+                              sessionStorage.removeItem("fromUrlChange");
+
+                              // Set direct navigation flag
+                              sessionStorage.setItem(
+                                "directNavigation",
+                                "true"
+                              );
+
+                              // Reset navigation loop detection
+                              sessionStorage.removeItem("lastNavPath");
+                              sessionStorage.removeItem("navLoopCount");
+
+                              // Directly set the DM
                               setActiveDM(dm);
                               setActiveChannel(null);
                               setActiveTab("direct");
+
+                              // Force navigation to the DM URL if we have an active workspace
                               if (activeWorkspace) {
-                                navigate(
-                                  `/workspace/${activeWorkspace.id}/direct/${dm.otherUser.id}`,
-                                  {
-                                    replace: true,
-                                  }
+                                const targetUrl = `/workspace/${activeWorkspace.id}/direct/${dm.otherUser.id}`;
+                                console.log(
+                                  `Directly navigating to: ${targetUrl}`
                                 );
+                                navigate(targetUrl, { replace: false });
                               }
                             }}
                           >

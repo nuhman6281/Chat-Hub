@@ -202,8 +202,8 @@ export const createSocket = (): Socket => {
           const eventType = parsedData.type || parsedData.event || "message";
           const eventData = parsedData.data || parsedData;
 
-          // Special case for auth_success
-          if (eventType === "auth_success" || eventType === "auth-success") {
+          // Special handling for auth_success messages
+          if (eventType === "auth_success") {
             console.log("Authentication successful:", parsedData);
             if (eventHandlers["auth_success"]) {
               eventHandlers["auth_success"].forEach((handler) =>
@@ -217,18 +217,34 @@ export const createSocket = (): Socket => {
           if (eventType === "error") {
             console.error("Received socket error:", parsedData);
 
-            // Special handling for channel membership error
-            if (
-              parsedData.message === "You are not a member of this channel" &&
-              eventHandlers["channel_membership_error"]
-            ) {
-              eventHandlers["channel_membership_error"].forEach((handler) =>
-                handler(parsedData)
-              );
-            }
+            // Categorize errors
+            const errorMessage = parsedData.message || "Unknown error";
 
-            if (eventHandlers["error"]) {
-              eventHandlers["error"].forEach((handler) => handler(parsedData));
+            if (errorMessage.includes("not a member of this channel")) {
+              console.log("Channel membership error detected");
+              if (eventHandlers["channel_membership_error"]) {
+                eventHandlers["channel_membership_error"].forEach((handler) =>
+                  handler({
+                    type: "channel_membership_error",
+                    message: errorMessage,
+                    details: parsedData,
+                  })
+                );
+              }
+            } else if (errorMessage.includes("Invalid message format")) {
+              console.log("Invalid message format error detected");
+              if (eventHandlers["error"]) {
+                eventHandlers["error"].forEach((handler) =>
+                  handler(parsedData)
+                );
+              }
+            } else {
+              // General errors
+              if (eventHandlers["error"]) {
+                eventHandlers["error"].forEach((handler) =>
+                  handler(parsedData)
+                );
+              }
             }
             return;
           }
@@ -244,15 +260,18 @@ export const createSocket = (): Socket => {
 
           // Handle regular messages
           if (eventHandlers[eventType]) {
-            eventHandlers[eventType].forEach((handler) => handler(parsedData));
+            console.log(
+              `Invoking ${eventHandlers[eventType].length} callbacks for event type: ${eventType}`
+            );
+            eventHandlers[eventType].forEach((handler) => handler(eventData));
           } else {
             console.log(
-              `No handlers for socket event: ${eventType}`,
+              `No callbacks registered for event type: ${eventType}`,
               parsedData
             );
           }
         } catch (error) {
-          console.error("Error processing socket message", error, event.data);
+          console.error("Error handling WebSocket message:", error);
         }
       };
 

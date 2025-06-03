@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
   HashRouter as Router,
   Routes,
@@ -16,30 +16,59 @@ import { ChatProvider } from "./contexts/ChatContext";
 import { CallProvider } from "./contexts/CallContext";
 import { useAuth } from "./contexts/AuthContext";
 
-// Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
+// ProtectedRoute component that's causing excessive logging
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = React.memo(
+  ({ children }) => {
+    const { user, isLoading } = useAuth();
+    const location = useLocation();
+    const path = location.pathname;
 
-  console.log(
-    `ProtectedRoute: Path=${
-      location.pathname
-    }, isLoading=${isLoading}, userExists=${!!user}`
-  );
+    // Use ref to avoid excessive logs
+    const prevPathRef = useRef(path);
+    const prevUserLoadingRef = useRef({ userId: user?.id, isLoading });
 
-  // Show loading state or redirect if not authenticated
-  if (isLoading) {
-    console.log("ProtectedRoute: Showing Loading...");
-    return <div>Loading...</div>;
+    // Only log when relevant states change
+    const hasPathChanged = path !== prevPathRef.current;
+    const hasUserStateChanged =
+      isLoading !== prevUserLoadingRef.current.isLoading ||
+      user?.id !== prevUserLoadingRef.current.userId;
+
+    // Update refs
+    useEffect(() => {
+      prevPathRef.current = path;
+      prevUserLoadingRef.current = { userId: user?.id, isLoading };
+    }, [path, user?.id, isLoading]);
+
+    // Only log when things actually change
+    if (hasPathChanged || hasUserStateChanged) {
+      console.log(
+        `ProtectedRoute: Path=${path}, isLoading=${isLoading}, userExists=${!!user}`
+      );
+    }
+
+    if (isLoading) {
+      return <div>Loading...</div>;
+    }
+
+    if (!user) {
+      return <Navigate to="/auth" state={{ from: location }} replace />;
+    }
+
+    // Only log once when rendering children
+    if (hasPathChanged || hasUserStateChanged) {
+      console.log("ProtectedRoute: User exists, rendering children");
+    }
+
+    return <>{children}</>;
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison function to prevent unnecessary re-renders
+    return (
+      React.Children.count(prevProps.children) ===
+      React.Children.count(nextProps.children)
+    );
   }
-  if (!user) {
-    console.log("ProtectedRoute: No user, redirecting to /auth");
-    return <Navigate to="/auth" state={{ from: location }} replace />;
-  }
-
-  console.log("ProtectedRoute: User exists, rendering children");
-  return <>{children}</>;
-};
+);
 
 function App() {
   return (
