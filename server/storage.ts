@@ -1029,6 +1029,44 @@ export class DatabaseStorage implements IStorage {
     const { message, user } = result[0];
     return { ...message, user };
   }
+
+  async getThreadMessages(threadId: number): Promise<MessageWithUser[]> {
+    const result = await db
+      .select({ message: messages, user: users })
+      .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(eq(messages.threadId, threadId))
+      .orderBy(messages.createdAt);
+
+    return result.map(r => ({ ...r.message, user: r.user }));
+  }
+
+  async updateThreadCount(messageId: number, count: number): Promise<void> {
+    await db
+      .update(messages)
+      .set({ threadCount: count })
+      .where(eq(messages.id, messageId));
+  }
+
+  async searchMessages(query: string, userId: number): Promise<MessageWithUser[]> {
+    const result = await db
+      .select({ message: messages, user: users })
+      .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(
+        and(
+          or(
+            sql`${messages.content} ILIKE ${`%${query}%`}`,
+            sql`${users.displayName} ILIKE ${`%${query}%`}`,
+            sql`${users.username} ILIKE ${`%${query}%`}`
+          )
+        )
+      )
+      .orderBy(sql`${messages.createdAt} DESC`)
+      .limit(50);
+
+    return result.map(r => ({ ...r.message, user: r.user }));
+  }
 }
 
 // Use database storage for persistence
