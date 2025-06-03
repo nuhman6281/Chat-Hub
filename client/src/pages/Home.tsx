@@ -237,12 +237,8 @@ export default function HomePage() {
 
   // Handle creating a channel
   const onCreateChannel = async (values: CreateChannelValues) => {
-    const newChannel = await createChannel(
-      values.name,
-      values.isPrivate,
-      values.description
-    );
-    if (newChannel) {
+    const newChannel = await createChannel(values.name, values.description);
+    if (newChannel !== undefined) {
       setIsCreatingChannel(false);
       channelForm.reset();
     }

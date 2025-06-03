@@ -1,3 +1,11 @@
+/*
+ * NOTE: This file contains type assertions (using "as any") to work around
+ * incompatibilities between different versions of drizzle-orm.
+ * The TypeScript errors are related to differences in the type definitions
+ * between the versions used in the client and server packages.
+ * These type assertions don't affect runtime functionality.
+ */
+
 import {
   users,
   type User,
@@ -421,6 +429,7 @@ export class MemStorage implements IStorage {
           throw new Error(`User with id ${otherUserId} not found`);
         }
 
+        // Get the most recent message
         const messages = await this.getMessagesByDirectMessageId(dm.id);
         const lastMessage =
           messages.length > 0 ? messages[messages.length - 1] : undefined;
@@ -612,10 +621,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [user] = await this.db
         .select()
-        .from(users)
+        .from(users as any)
         .where(sql`${users.id} = ${id}`)
         .limit(1);
-      return user;
+      return user as User;
     } catch (error) {
       console.error("Error getting user by ID:", error);
       return undefined;
@@ -626,10 +635,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [user] = await this.db
         .select()
-        .from(users)
+        .from(users as any)
         .where(sql`${users.username} = ${username}`)
         .limit(1);
-      return user;
+      return user as User;
     } catch (error) {
       console.error("Error getting user by username:", error);
       return undefined;
@@ -640,10 +649,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [user] = await this.db
         .select()
-        .from(users)
+        .from(users as any)
         .where(sql`${users.email} = ${email}`)
         .limit(1);
-      return user;
+      return user as User;
     } catch (error) {
       console.error("Error getting user by email:", error);
       return undefined;
@@ -653,11 +662,11 @@ export class DatabaseStorage implements IStorage {
   async createUser(userData: InsertUser): Promise<User> {
     try {
       const [newUser] = await this.db
-        .insert(users)
+        .insert(users as any)
         .values(userData)
         .returning();
-      return newUser;
-    } catch (error) {
+      return newUser as User;
+    } catch (error: any) {
       console.error("Error creating user:", error);
       throw new Error(`Failed to create user: ${error.message}`);
     }
@@ -669,11 +678,11 @@ export class DatabaseStorage implements IStorage {
   ): Promise<User | undefined> {
     try {
       const [updatedUser] = await this.db
-        .update(users)
+        .update(users as any)
         .set({ status })
         .where(sql`${users.id} = ${id}`)
         .returning();
-      return updatedUser;
+      return updatedUser as User;
     } catch (error) {
       console.error("Error updating user status:", error);
       return undefined;
@@ -684,13 +693,13 @@ export class DatabaseStorage implements IStorage {
   async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
     try {
       const [newWorkspace] = await this.db
-        .insert(workspaces)
+        .insert(workspaces as any)
         .values(workspace)
         .returning();
 
       // Add the owner as a member
       await this.addWorkspaceMember({
-        workspaceId: newWorkspace.id,
+        workspaceId: newWorkspace.id as number,
         userId: workspace.ownerId,
         role: "owner",
       });
@@ -698,13 +707,13 @@ export class DatabaseStorage implements IStorage {
       // Create a default "general" channel
       await this.createChannel({
         name: "general",
-        workspaceId: newWorkspace.id,
+        workspaceId: newWorkspace.id as number,
         description: "General discussions",
         isPrivate: false,
       });
 
-      return newWorkspace;
-    } catch (error) {
+      return newWorkspace as Workspace;
+    } catch (error: any) {
       console.error("Error creating workspace:", error);
       throw new Error(`Failed to create workspace: ${error.message}`);
     }
@@ -714,10 +723,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [workspace] = await this.db
         .select()
-        .from(workspaces)
+        .from(workspaces as any)
         .where(sql`${workspaces.id} = ${id}`)
         .limit(1);
-      return workspace;
+      return workspace as Workspace;
     } catch (error) {
       console.error("Error getting workspace:", error);
       return undefined;
@@ -729,20 +738,20 @@ export class DatabaseStorage implements IStorage {
       // Join workspaces with workspaceMembers to get workspaces where user is a member
       const result = await this.db
         .select({
-          id: workspaces.id,
-          name: workspaces.name,
-          ownerId: workspaces.ownerId,
-          iconText: workspaces.iconText,
-          createdAt: workspaces.createdAt,
+          id: workspaces.id as any,
+          name: workspaces.name as any,
+          ownerId: workspaces.ownerId as any,
+          iconText: workspaces.iconText as any,
+          createdAt: workspaces.createdAt as any,
         })
-        .from(workspaces)
+        .from(workspaces as any)
         .innerJoin(
-          workspaceMembers,
+          workspaceMembers as any,
           sql`${workspaceMembers.workspaceId} = ${workspaces.id}`
         )
         .where(sql`${workspaceMembers.userId} = ${userId}`);
 
-      return result;
+      return result as Workspace[];
     } catch (error) {
       console.error("Error getting workspaces by user ID:", error);
       return [];
@@ -753,11 +762,11 @@ export class DatabaseStorage implements IStorage {
   async createChannel(channel: InsertChannel): Promise<Channel> {
     try {
       const [newChannel] = await this.db
-        .insert(channels)
+        .insert(channels as any)
         .values(channel)
         .returning();
-      return newChannel;
-    } catch (error) {
+      return newChannel as Channel;
+    } catch (error: any) {
       console.error("Error creating channel:", error);
       throw new Error(`Failed to create channel: ${error.message}`);
     }
@@ -767,10 +776,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [channel] = await this.db
         .select()
-        .from(channels)
+        .from(channels as any)
         .where(sql`${channels.id} = ${id}`)
         .limit(1);
-      return channel;
+      return channel as Channel;
     } catch (error) {
       console.error("Error getting channel:", error);
       return undefined;
@@ -784,16 +793,16 @@ export class DatabaseStorage implements IStorage {
       // Get all channels in the workspace
       const channelsData = await this.db
         .select()
-        .from(channels)
+        .from(channels as any)
         .where(sql`${channels.workspaceId} = ${workspaceId}`);
 
       // For each channel, count its members
       const result = await Promise.all(
-        channelsData.map(async (channel) => {
+        channelsData.map(async (channel: any) => {
           // Count members in each channel
           const [{ count: memberCount }] = await this.db
             .select({ count: count() })
-            .from(channelMembers)
+            .from(channelMembers as any)
             .where(sql`${channelMembers.channelId} = ${channel.id}`);
 
           return {
@@ -803,7 +812,7 @@ export class DatabaseStorage implements IStorage {
         })
       );
 
-      return result;
+      return result as ChannelWithMemberCount[];
     } catch (error) {
       console.error("Error getting channels by workspace ID:", error);
       return [];
@@ -815,7 +824,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Insert the message into the database
       const [newMessage] = await this.db
-        .insert(messages)
+        .insert(messages as any)
         .values({
           ...message,
           channelId: message.channelId || null,
@@ -830,8 +839,8 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Return the message with user information
-      return { ...newMessage, user };
-    } catch (error) {
+      return { ...newMessage, user } as MessageWithUser;
+    } catch (error: any) {
       console.error("Error creating message:", error);
       throw new Error(`Failed to create message: ${error.message}`);
     }
@@ -841,18 +850,18 @@ export class DatabaseStorage implements IStorage {
     try {
       const messagesData = await this.db
         .select({
-          message: messages,
-          user: users,
+          message: messages as any,
+          user: users as any,
         })
-        .from(messages)
-        .innerJoin(users, sql`${users.id} = ${messages.userId}`)
+        .from(messages as any)
+        .innerJoin(users as any, sql`${users.id} = ${messages.userId}`)
         .where(sql`${messages.channelId} = ${channelId}`)
-        .orderBy(messages.createdAt);
+        .orderBy(messages.createdAt as any);
 
-      return messagesData.map((item) => ({
+      return messagesData.map((item: any) => ({
         ...item.message,
         user: item.user,
-      }));
+      })) as MessageWithUser[];
     } catch (error) {
       console.error("Error getting messages by channel ID:", error);
       return [];
@@ -865,18 +874,18 @@ export class DatabaseStorage implements IStorage {
     try {
       const messagesData = await this.db
         .select({
-          message: messages,
-          user: users,
+          message: messages as any,
+          user: users as any,
         })
-        .from(messages)
-        .innerJoin(users, sql`${users.id} = ${messages.userId}`)
+        .from(messages as any)
+        .innerJoin(users as any, sql`${users.id} = ${messages.userId}`)
         .where(sql`${messages.directMessageId} = ${directMessageId}`)
-        .orderBy(messages.createdAt);
+        .orderBy(messages.createdAt as any);
 
-      return messagesData.map((item) => ({
+      return messagesData.map((item: any) => ({
         ...item.message,
         user: item.user,
-      }));
+      })) as MessageWithUser[];
     } catch (error) {
       console.error("Error getting messages by direct message ID:", error);
       return [];
@@ -887,11 +896,11 @@ export class DatabaseStorage implements IStorage {
   async createDirectMessage(dm: InsertDirectMessage): Promise<DirectMessage> {
     try {
       const [directMessage] = await this.db
-        .insert(directMessages)
+        .insert(directMessages as any)
         .values(dm)
         .returning();
-      return directMessage;
-    } catch (error) {
+      return directMessage as DirectMessage;
+    } catch (error: any) {
       console.error("Error creating direct message:", error);
       throw new Error(`Failed to create direct message: ${error.message}`);
     }
@@ -901,10 +910,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const [dm] = await this.db
         .select()
-        .from(directMessages)
+        .from(directMessages as any)
         .where(sql`${directMessages.id} = ${id}`)
         .limit(1);
-      return dm;
+      return dm as DirectMessage;
     } catch (error) {
       console.error("Error getting direct message:", error);
       return undefined;
@@ -919,13 +928,13 @@ export class DatabaseStorage implements IStorage {
       // Check both possible combinations of user IDs
       const [dm] = await this.db
         .select()
-        .from(directMessages)
+        .from(directMessages as any)
         .where(
           sql`(${directMessages.user1Id} = ${user1Id} AND ${directMessages.user2Id} = ${user2Id}) OR 
               (${directMessages.user1Id} = ${user2Id} AND ${directMessages.user2Id} = ${user1Id})`
         )
         .limit(1);
-      return dm;
+      return dm as DirectMessage;
     } catch (error) {
       console.error("Error getting direct message by user IDs:", error);
       return undefined;
@@ -939,14 +948,14 @@ export class DatabaseStorage implements IStorage {
       // Get direct messages where user is either user1 or user2
       const dms = await this.db
         .select()
-        .from(directMessages)
+        .from(directMessages as any)
         .where(
           sql`${directMessages.user1Id} = ${userId} OR ${directMessages.user2Id} = ${userId}`
         );
 
       // For each DM, get the other user and the last message
       const enrichedDms = await Promise.all(
-        dms.map(async (dm) => {
+        dms.map(async (dm: any) => {
           const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
           const otherUser = await this.getUser(otherUserId);
 
@@ -967,7 +976,7 @@ export class DatabaseStorage implements IStorage {
         })
       );
 
-      return enrichedDms;
+      return enrichedDms as DirectMessageWithUser[];
     } catch (error) {
       console.error("Error getting direct messages by user ID:", error);
       return [];
@@ -980,11 +989,11 @@ export class DatabaseStorage implements IStorage {
   ): Promise<WorkspaceMember> {
     try {
       const [newMember] = await this.db
-        .insert(workspaceMembers)
+        .insert(workspaceMembers as any)
         .values(member)
         .returning();
-      return newMember;
-    } catch (error) {
+      return newMember as WorkspaceMember;
+    } catch (error: any) {
       console.error("Error adding workspace member:", error);
       throw new Error(`Failed to add workspace member: ${error.message}`);
     }
@@ -996,23 +1005,23 @@ export class DatabaseStorage implements IStorage {
     try {
       const members = await this.db
         .select({
-          id: workspaceMembers.id,
-          workspaceId: workspaceMembers.workspaceId,
-          userId: workspaceMembers.userId,
-          role: workspaceMembers.role,
-          user: users,
+          id: workspaceMembers.id as any,
+          workspaceId: workspaceMembers.workspaceId as any,
+          userId: workspaceMembers.userId as any,
+          role: workspaceMembers.role as any,
+          user: users as any,
         })
-        .from(workspaceMembers)
-        .innerJoin(users, sql`${users.id} = ${workspaceMembers.userId}`)
+        .from(workspaceMembers as any)
+        .innerJoin(users as any, sql`${users.id} = ${workspaceMembers.userId}`)
         .where(sql`${workspaceMembers.workspaceId} = ${workspaceId}`);
 
-      return members.map((member) => ({
+      return members.map((member: any) => ({
         id: member.id,
         workspaceId: member.workspaceId,
         userId: member.userId,
         role: member.role,
         user: member.user,
-      }));
+      })) as (WorkspaceMember & { user: User })[];
     } catch (error) {
       console.error("Error getting workspace members:", error);
       return [];
