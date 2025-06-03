@@ -67,6 +67,13 @@ export interface IStorage {
   addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction>;
   getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]>;
   removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean>;
+  
+  // Thread messages
+  getThreadMessages(parentMessageId: number): Promise<MessageWithUser[]>;
+  updateThreadCount(messageId: number, count: number): Promise<void>;
+  
+  // Search messages
+  searchMessages(query: string, userId: number): Promise<MessageWithUser[]>;
 
   // File uploads
   createFileUpload(file: InsertFileUpload): Promise<FileUpload>;
@@ -269,7 +276,8 @@ export class MemStorage implements IStorage {
       replyToId: insertMessage.replyToId || null,
       isEdited: false,
       editedAt: null,
-      reactions: null,
+      threadId: insertMessage.threadId || null,
+      threadCount: 0,
       isEncrypted: insertMessage.isEncrypted || false,
       encryptedContent: insertMessage.encryptedContent || null,
       nonce: insertMessage.nonce || null,
@@ -632,6 +640,74 @@ export class MemStorage implements IStorage {
     if (!user) return undefined;
     
     return { ...message, user };
+  }
+
+  async getThreadMessages(parentMessageId: number): Promise<MessageWithUser[]> {
+    const threadMessages = Array.from(this.messages.values())
+      .filter(message => message.threadId === parentMessageId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    const messagesWithUsers = threadMessages.map(message => {
+      const user = this.users.get(message.userId);
+      return user ? { ...message, user } : null;
+    }).filter((message): message is MessageWithUser => message !== null);
+
+    return messagesWithUsers;
+  }
+
+  async updateThreadCount(messageId: number, count: number): Promise<void> {
+    const message = this.messages.get(messageId);
+    if (message) {
+      message.threadCount = count;
+    }
+  }
+
+  async searchMessages(query: string, userId: number): Promise<MessageWithUser[]> {
+    const normalizedQuery = query.toLowerCase().trim();
+    if (!normalizedQuery) return [];
+
+    // Get all messages the user has access to
+    const userWorkspaces = Array.from(this.workspaceMembers.values())
+      .filter(member => member.userId === userId)
+      .map(member => member.workspaceId);
+
+    const userChannels = Array.from(this.channelMembers.values())
+      .filter(member => member.userId === userId)
+      .map(member => member.channelId);
+
+    const userDirectMessages = Array.from(this.directMessages.values())
+      .filter(dm => dm.user1Id === userId || dm.user2Id === userId)
+      .map(dm => dm.id);
+
+    const searchResults = Array.from(this.messages.values())
+      .filter(message => {
+        // Check access permissions
+        const hasChannelAccess = message.channelId && userChannels.includes(message.channelId);
+        const hasDMAccess = message.directMessageId && userDirectMessages.includes(message.directMessageId);
+        
+        if (!hasChannelAccess && !hasDMAccess) return false;
+
+        // Search in content
+        const contentMatch = message.content.toLowerCase().includes(normalizedQuery);
+        
+        // Search in user names
+        const user = this.users.get(message.userId);
+        const userMatch = user && (
+          user.displayName.toLowerCase().includes(normalizedQuery) ||
+          user.username.toLowerCase().includes(normalizedQuery)
+        );
+
+        return contentMatch || userMatch;
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 50); // Limit results
+
+    const messagesWithUsers = searchResults.map(message => {
+      const user = this.users.get(message.userId);
+      return user ? { ...message, user } : null;
+    }).filter((message): message is MessageWithUser => message !== null);
+
+    return messagesWithUsers;
   }
 }
 
