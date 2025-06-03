@@ -305,7 +305,8 @@ export class MemStorage implements IStorage {
       replyToId: message.replyToId,
       isEdited: message.isEdited,
       editedAt: message.editedAt,
-      reactions: message.reactions,
+      threadId: message.threadId,
+      threadCount: message.threadCount,
       isEncrypted: message.isEncrypted,
       encryptedContent: message.encryptedContent,
       nonce: message.nonce,
@@ -499,7 +500,8 @@ export class MemStorage implements IStorage {
               replyToId: lastMessage.replyToId,
               isEdited: lastMessage.isEdited,
               editedAt: lastMessage.editedAt,
-              reactions: lastMessage.reactions,
+              threadId: lastMessage.threadId,
+              threadCount: lastMessage.threadCount,
               isEncrypted: lastMessage.isEncrypted,
               encryptedContent: lastMessage.encryptedContent,
               nonce: lastMessage.nonce,
@@ -1029,7 +1031,7 @@ export class DatabaseStorage implements IStorage {
 }
 
 // Force use of in-memory storage for stability
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();
 console.log('Using MemStorage for complete in-memory operation');
 
 // Completely disable DatabaseStorage to prevent any database connections

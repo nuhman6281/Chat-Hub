@@ -1,0 +1,43 @@
+Home.tsx:403 Starting DM with user 4
+ChatContext.tsx:341 
+            
+            
+           GET https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/direct-messages 500 (Internal Server Error)
+fetchDirectMessages @ ChatContext.tsx:341
+startDirectMessage @ ChatContext.tsx:620
+await in startDirectMessage
+onClick @ Home.tsx:404
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js?v=038327ab:3736
+executeDispatch @ chunk-UZOKQUDP.js?v=038327ab:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js?v=038327ab:7034
+processDispatchQueue @ chunk-UZOKQUDP.js?v=038327ab:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js?v=038327ab:7051
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js?v=038327ab:18913
+batchedUpdates @ chunk-UZOKQUDP.js?v=038327ab:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js?v=038327ab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js?v=038327ab:5478
+dispatchEvent @ chunk-UZOKQUDP.js?v=038327ab:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js?v=038327ab:5449
+Home.tsx:414 Failed to create DM or missing user data
+overrideMethod @ hook.js:608
+onClick @ Home.tsx:414
+await in onClick
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js?v=038327ab:3736
+executeDispatch @ chunk-UZOKQUDP.js?v=038327ab:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js?v=038327ab:7034
+processDispatchQueue @ chunk-UZOKQUDP.js?v=038327ab:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js?v=038327ab:7051
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js?v=038327ab:18913
+batchedUpdates @ chunk-UZOKQUDP.js?v=038327ab:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js?v=038327ab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js?v=038327ab:5478
+dispatchEvent @ chunk-UZOKQUDP.js?v=038327ab:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js?v=038327ab:5449
