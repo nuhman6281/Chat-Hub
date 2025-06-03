@@ -443,6 +443,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: 'admin'
       });
       
+      // Create a default general channel
+      const channel = await storage.createChannel({
+        name: 'general',
+        workspaceId: workspace.id,
+        createdBy: (req.user as any).id,
+        isPrivate: false
+      });
+      
+      // Add the creator to the channel
+      await storage.addChannelMember({
+        channelId: channel.id,
+        userId: (req.user as any).id
+      });
+      
       res.status(201).json(workspace);
     } catch (error) {
       console.error('Workspace creation error:', error);
@@ -504,28 +518,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Workspace ID is required' });
       }
       
-      const validatedData = insertChannelSchema.parse({
-        name: channelName,
-        workspaceId: workspaceId,
-        description: description || null,
-        isPrivate: req.body.isPrivate || false
-      });
-      
       const userId = (req.user as any).id;
       
       // Check if user is a member of the workspace
-      const isMember = await storage.isUserInWorkspace(userId, validatedData.workspaceId);
+      const isMember = await storage.isUserInWorkspace(userId, workspaceId);
       if (!isMember) {
         return res.status(403).json({ message: 'You do not have access to this workspace' });
       }
       
+      const validatedData = insertChannelSchema.parse({
+        name: channelName,
+        workspaceId: workspaceId,
+        description: description || null,
+        createdBy: userId,
+        isPrivate: req.body.isPrivate || false
+      });
+      
       const channel = await storage.createChannel(validatedData);
       
-      // Add the creator to the channel
-      await storage.addChannelMember({
-        channelId: channel.id,
-        userId
-      });
+      // For public channels, add all workspace members automatically
+      if (!validatedData.isPrivate) {
+        const workspaceMembers = await storage.getWorkspaceMembersByWorkspaceId(workspaceId);
+        for (const member of workspaceMembers) {
+          await storage.addChannelMember({
+            channelId: channel.id,
+            userId: member.userId
+          });
+        }
+      } else {
+        // For private channels, only add the creator
+        await storage.addChannelMember({
+          channelId: channel.id,
+          userId
+        });
+      }
       
       res.status(201).json(channel);
     } catch (error) {
@@ -916,6 +942,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: targetUser.id,
         role: 'member'
       });
+      
+      // Add user to all public channels in the workspace
+      const channels = await storage.getChannelsByWorkspaceId(workspaceId);
+      for (const channel of channels) {
+        if (!channel.isPrivate) {
+          // Check if user is not already in the channel
+          const isInChannel = await storage.isUserInChannel(targetUser.id, channel.id);
+          if (!isInChannel) {
+            await storage.addChannelMember({
+              channelId: channel.id,
+              userId: targetUser.id
+            });
+          }
+        }
+      }
       
       res.status(201).json(member);
     } catch (error) {
