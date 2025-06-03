@@ -374,7 +374,7 @@ export default function HomePage() {
                               <Plus className="h-3 w-3" />
                             </Button>
                           </DialogTrigger>
-                      <DialogContent>
+                          <DialogContent>
                         <DialogHeader>
                           <DialogTitle>Create a new channel</DialogTitle>
                           <DialogDescription>

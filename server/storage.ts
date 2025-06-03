@@ -720,3 +720,11 @@ export class DatabaseStorage implements IStorage {
 // Force use of in-memory storage for stability
 export const storage = new MemStorage();
 console.log('Using MemStorage for complete in-memory operation');
+
+// Completely disable DatabaseStorage to prevent any database connections
+export class DisabledDatabaseStorage {
+  sessionStore = null;
+  constructor() {
+    throw new Error('Database storage is disabled - using MemStorage only');
+  }
+}
