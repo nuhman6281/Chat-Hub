@@ -117,7 +117,7 @@ export default function Home() {
 
   const handleCreateWorkspace = async (values: CreateWorkspaceValues) => {
     try {
-      await createWorkspace(values);
+      await createWorkspace(values.name, values.description);
       setShowCreateWorkspace(false);
       workspaceForm.reset();
       toast({

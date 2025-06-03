@@ -421,10 +421,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Workspaces
   app.post('/api/workspaces', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
+      // Handle nested name object from frontend
+      const workspaceName = typeof req.body.name === 'string' ? req.body.name : req.body.name?.name || req.body.name;
+      
+      if (!workspaceName || typeof workspaceName !== 'string') {
+        return res.status(400).json({ message: 'Workspace name is required' });
+      }
+      
       const validatedData = insertWorkspaceSchema.parse({
-        name: req.body.name,
+        name: workspaceName,
         ownerId: (req.user as any).id,
-        iconText: req.body.iconText || req.body.name?.charAt(0)?.toUpperCase() || "W"
+        iconText: req.body.iconText || workspaceName.charAt(0).toUpperCase()
       });
       
       const workspace = await storage.createWorkspace(validatedData);
