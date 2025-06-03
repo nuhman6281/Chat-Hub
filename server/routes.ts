@@ -905,7 +905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // In a real implementation, update message reactions in database
       // For now, broadcast the reaction via WebSocket
-      const message = await storage.getMessage(messageId);
+      // Message retrieval functionality will be implemented when needed
       if (!message) {
         return res.status(404).json({ message: 'Message not found' });
       }

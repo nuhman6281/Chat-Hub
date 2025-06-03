@@ -14,7 +14,7 @@ import { ProtectedRoute } from "@/lib/protected-route";
 const HomePage = lazy(() => import("@/pages/Home"));
 const AuthPage = lazy(() => import("@/pages/auth-page"));
 const NotFound = lazy(() => import("@/pages/not-found"));
-const TestDemo = lazy(() => import("@/pages/TestDemo"));
+
 
 function LoadingSpinner() {
   return (
