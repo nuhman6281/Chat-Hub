@@ -54,8 +54,10 @@ export function useSocket() {
             const handlers = handlersRef.current.get(type);
             if (handlers) {
               console.log(`Found ${handlers.size} handlers for event type: ${type}`);
-              handlers.forEach((handler, index) => {
-                console.log(`Calling handler ${index + 1} for ${type}`);
+              let handlerIndex = 0;
+              handlers.forEach((handler) => {
+                handlerIndex++;
+                console.log(`Calling handler ${handlerIndex} for ${type}`);
                 handler(payload);
               });
             } else {

@@ -145,13 +145,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    on('incoming_call', handleIncomingCall);
-    on('call_answered', handleCallAnswered);
-    on('call_rejected', handleCallRejected);
-    on('call_ended', handleCallEnded);
+    console.log('CallContext: Registering WebSocket event handlers');
+    const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
+    const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
+    const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
+    const unsubscribeCallEnded = on('call_ended', handleCallEnded);
 
     return () => {
-      // Cleanup would go here if the socket library supported it
+      console.log('CallContext: Cleaning up WebSocket event handlers');
+      unsubscribeIncomingCall();
+      unsubscribeCallAnswered();
+      unsubscribeCallRejected();
+      unsubscribeCallEnded();
     };
   }, [isConnected, on]);
 
