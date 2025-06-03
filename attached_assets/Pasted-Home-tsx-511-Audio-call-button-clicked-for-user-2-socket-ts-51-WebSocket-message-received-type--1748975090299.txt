@@ -1,0 +1,67 @@
+Home.tsx:511 Audio call button clicked for user: 2
+socket.ts:51 WebSocket message received: {type: 'call_ringing', payload: {…}}
+socket.ts:56 Found 1 handlers for event type: call_ringing
+socket.ts:60 Calling handler 1 for call_ringing
+ChatContext.tsx:314 Call ringing event received: {callId: 'call_1_2_1748975067404', to: {…}}
+hook.js:608 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. Error Component Stack
+    at DescriptionWarning (@radix-ui_react-dialog.js?v=038327ab:331:29)
+    at @radix-ui_react-dialog.js?v=038327ab:235:13
+    at @radix-ui_react-dialog.js?v=038327ab:158:58
+    at Presence (chunk-L2LIMKDN.js?v=038327ab:34:11)
+    at @radix-ui_react-dialog.js?v=038327ab:149:64
+    at chunk-55LPWO2J.js?v=038327ab:79:13
+    at chunk-55LPWO2J.js?v=038327ab:56:13
+    at chunk-Z2TUXVHS.js?v=038327ab:42:13
+    at chunk-EUD6AIWE.js?v=038327ab:260:22
+    at Presence (chunk-L2LIMKDN.js?v=038327ab:34:11)
+    at Provider (chunk-HYZ6UR5K.js?v=038327ab:38:15)
+    at DialogPortal (@radix-ui_react-dialog.js?v=038327ab:111:11)
+    at _c3 (dialog.tsx:35:6)
+    at Provider (chunk-HYZ6UR5K.js?v=038327ab:38:15)
+    at Dialog (@radix-ui_react-dialog.js?v=038327ab:52:5)
+    at CallModal (call-modal.tsx:25:29)
+    at div (<anonymous>)
+    at Home (Home.tsx:60:36)
+    at Route (wouter.js?v=038327ab:323:16)
+    at ProtectedRoute (protected-route.tsx:11:34)
+    at Switch (wouter.js?v=038327ab:379:17)
+    at Suspense (<anonymous>)
+    at Router (<anonymous>)
+    at Provider (chunk-HYZ6UR5K.js?v=038327ab:38:15)
+    at TooltipProvider (@radix-ui_react-tooltip.js?v=038327ab:60:5)
+    at CallProvider (CallContext.tsx:56:32)
+    at ChatProvider (ChatContext.tsx:119:32)
+    at AuthProviderInner (AuthWrapper.tsx:41:30)
+    at AuthProvider (AuthWrapper.tsx:229:32)
+    at QueryClientProvider (@tanstack_react-query.js?v=038327ab:2805:3)
+    at App (<anonymous>)
+    at ThemeProvider (ThemeContext.tsx:15:33)
+overrideMethod @ hook.js:608
+(anonymous) @ @radix-ui_react-dialog.js?v=038327ab:339
+commitHookEffectListMount @ chunk-UZOKQUDP.js?v=038327ab:16915
+commitPassiveMountOnFiber @ chunk-UZOKQUDP.js?v=038327ab:18156
+commitPassiveMountEffects_complete @ chunk-UZOKQUDP.js?v=038327ab:18129
+commitPassiveMountEffects_begin @ chunk-UZOKQUDP.js?v=038327ab:18119
+commitPassiveMountEffects @ chunk-UZOKQUDP.js?v=038327ab:18109
+flushPassiveEffectsImpl @ chunk-UZOKQUDP.js?v=038327ab:19490
+flushPassiveEffects @ chunk-UZOKQUDP.js?v=038327ab:19447
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19416
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+performSyncWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18895
+flushSyncCallbacks @ chunk-UZOKQUDP.js?v=038327ab:9119
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19432
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+finishConcurrentRender @ chunk-UZOKQUDP.js?v=038327ab:18805
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18718
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+[Violation] Forced reflow while executing JavaScript took 48ms
+socket.ts:51 WebSocket message received: {type: 'call_answered', payload: {…}}
+socket.ts:56 Found 1 handlers for event type: call_answered
+socket.ts:60 Calling handler 1 for call_answered
+ChatContext.tsx:286 Call accepted event received: {callId: 'call_1_2_1748975067404', by: {…}}
+socket.ts:51 WebSocket message received: {type: 'call_ended', payload: {…}}
+socket.ts:56 Found 1 handlers for event type: call_ended
+socket.ts:60 Calling handler 1 for call_ended
+ChatContext.tsx:304 Call ended event received: {callId: 'call_1_2_1748975067404', endedBy: {…}}

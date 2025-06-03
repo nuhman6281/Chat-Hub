@@ -115,12 +115,14 @@ export function useSocket() {
     }
     
     handlersRef.current.get(eventType)!.add(handler);
+    console.log(`Handler registered for ${eventType}, total handlers: ${handlersRef.current.get(eventType)!.size}`);
     
     // Return cleanup function
     return () => {
       const handlers = handlersRef.current.get(eventType);
       if (handlers) {
         handlers.delete(handler);
+        console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
         if (handlers.size === 0) {
           handlersRef.current.delete(eventType);
         }
