@@ -82,6 +82,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('channels');
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showInviteUser, setShowInviteUser] = useState(false);
+  const [showCreateUser, setShowCreateUser] = useState(false);
 
   // Form hooks
   const workspaceForm = useForm<CreateWorkspaceValues>({
@@ -102,7 +104,7 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut();
     } catch (error) {
       toast({
         title: "Error",
@@ -473,31 +475,37 @@ export default function Home() {
                   {isInitiating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
                 </Button>
                 
-                {/* User Invitation Buttons */}
+                {/* User Management Buttons */}
                 {activeChannel && (
                   <>
-                    <InviteUserDialog
-                      isOpen={false}
-                      onClose={() => {}}
-                      targetType="channel"
-                      targetId={activeChannel.id}
-                      targetName={activeChannel.name}
-                    />
-                    <CreateUserDialog
-                      isOpen={false}
-                      onClose={() => {}}
-                    />
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setShowInviteUser(true)}
+                      title="Invite user to channel"
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setShowCreateUser(true)}
+                      title="Create new user"
+                    >
+                      <User className="h-4 w-4" />
+                    </Button>
                   </>
                 )}
                 
-                {activeWorkspace && (
-                  <InviteUserDialog
-                    isOpen={false}
-                    onClose={() => {}}
-                    targetType="workspace"
-                    targetId={activeWorkspace.id}
-                    targetName={activeWorkspace.name}
-                  />
+                {activeWorkspace && !activeChannel && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setShowInviteUser(true)}
+                    title="Invite user to workspace"
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
                 )}
               </>
             )}
@@ -555,6 +563,26 @@ export default function Home() {
           )}
         </div>
       </div>
+      
+      {/* User Invitation Dialogs */}
+      <InviteUserDialog
+        isOpen={showInviteUser}
+        onClose={() => setShowInviteUser(false)}
+        targetType={activeChannel ? 'channel' : 'workspace'}
+        targetId={activeChannel ? activeChannel.id : (activeWorkspace?.id || 1)}
+        targetName={activeChannel ? activeChannel.name : (activeWorkspace?.name || 'Workspace')}
+      />
+      
+      <CreateUserDialog
+        isOpen={showCreateUser}
+        onClose={() => setShowCreateUser(false)}
+        onUserCreated={(user) => {
+          toast({
+            title: "User created",
+            description: `${user.displayName} has been created successfully`,
+          });
+        }}
+      />
     </div>
   );
 }
