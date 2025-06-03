@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
+import { useSocket } from '@/lib/socket';
 
 export type CallType = 'audio' | 'video';
 
@@ -9,6 +10,8 @@ export interface CallParticipant {
   username: string;
   displayName: string;
   stream?: MediaStream;
+  audioEnabled: boolean;
+  videoEnabled: boolean;
 }
 
 interface CallContextType {
@@ -23,6 +26,7 @@ interface CallContextType {
   // Actions
   initiateCall: (targetUserId: number, type: CallType) => Promise<void>;
   answerCall: () => Promise<void>;
+  rejectCall: () => void;
   endCall: () => void;
   toggleMute: () => void;
   toggleVideo: () => void;
@@ -31,7 +35,12 @@ interface CallContextType {
   isMuted: boolean;
   isVideoEnabled: boolean;
   showIncomingCall: boolean;
-  incomingCall: { from: CallParticipant; type: CallType } | null;
+  incomingCall: boolean;
+  outgoingCall: boolean;
+  activeCall: boolean;
+  callerName: string | null;
+  localAudioEnabled: boolean;
+  localVideoEnabled: boolean;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -47,6 +56,7 @@ export function useCall() {
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isConnected, on, send } = useSocket();
   
   // Call state
   const [isInCall, setIsInCall] = useState(false);
@@ -58,11 +68,125 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [showIncomingCall, setShowIncomingCall] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<{ from: CallParticipant; type: CallType } | null>(null);
+  const [incomingCall, setIncomingCall] = useState(false);
+  const [outgoingCall, setOutgoingCall] = useState(false);
+  const [activeCall, setActiveCall] = useState(false);
+  const [callerName, setCallerName] = useState<string | null>(null);
+  const [localAudioEnabled, setLocalAudioEnabled] = useState(true);
+  const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
+  
+  // Ringing sound management
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
+  // Initialize ringtone
+  useEffect(() => {
+    ringtoneRef.current = new Audio('data:audio/wav;base64,UklGRpQEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YXAEAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt');
+    ringtoneRef.current.loop = true;
+    ringtoneRef.current.volume = 0.5;
+  }, []);
+
+  // WebSocket event handlers for calls
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleIncomingCall = (payload: any) => {
+      setIncomingCall(true);
+      setCallType(payload.callType);
+      setCallerName(payload.from.displayName);
+      setShowIncomingCall(true);
+      
+      // Play ringtone
+      if (ringtoneRef.current) {
+        ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
+      }
+
+      toast({
+        title: 'Incoming call',
+        description: `${payload.from.displayName} is calling you`,
+        duration: 10000
+      });
+    };
+
+    const handleCallAnswered = () => {
+      stopRingtone();
+      setOutgoingCall(false);
+      setActiveCall(true);
+      toast({
+        title: 'Call answered',
+        description: 'Call connected'
+      });
+    };
+
+    const handleCallRejected = () => {
+      stopRingtone();
+      resetCallState();
+      toast({
+        title: 'Call declined',
+        description: 'The call was declined'
+      });
+    };
+
+    const handleCallEnded = () => {
+      stopRingtone();
+      resetCallState();
+      toast({
+        title: 'Call ended',
+        description: 'The call has ended'
+      });
+    };
+
+    on('incoming_call', handleIncomingCall);
+    on('call_answered', handleCallAnswered);
+    on('call_rejected', handleCallRejected);
+    on('call_ended', handleCallEnded);
+
+    return () => {
+      // Cleanup would go here if the socket library supported it
+    };
+  }, [isConnected, on]);
+
+  const stopRingtone = () => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause();
+      ringtoneRef.current.currentTime = 0;
+    }
+  };
+
+  const resetCallState = () => {
+    setIsInCall(false);
+    setIsInitiating(false);
+    setIncomingCall(false);
+    setOutgoingCall(false);
+    setActiveCall(false);
+    setShowIncomingCall(false);
+    setCallType(null);
+    setCallerName(null);
+    setParticipants([]);
+    
+    // Stop local stream
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    
+    // Stop remote stream
+    if (remoteStream) {
+      remoteStream.getTracks().forEach(track => track.stop());
+      setRemoteStream(null);
+    }
+    
+    // Close peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
 
   const initiateCall = async (targetUserId: number, type: CallType) => {
     try {
       setIsInitiating(true);
+      setOutgoingCall(true);
       setCallType(type);
       
       // Get user media
@@ -72,7 +196,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
       
       setLocalStream(stream);
-      setIsVideoEnabled(type === 'video');
+      setLocalAudioEnabled(true);
+      setLocalVideoEnabled(type === 'video');
       
       // Make API call to initiate call
       const response = await fetch('/api/calls/initiate', {
@@ -87,7 +212,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
       
       if (response.ok) {
-        setIsInCall(true);
         toast({
           title: "Call initiated",
           description: `${type === 'video' ? 'Video' : 'Voice'} call started`,
@@ -101,7 +225,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         description: "Unable to start call. Please check your microphone/camera permissions.",
         variant: "destructive",
       });
-      endCall();
+      resetCallState();
     } finally {
       setIsInitiating(false);
     }
