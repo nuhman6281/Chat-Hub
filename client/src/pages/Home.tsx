@@ -73,6 +73,7 @@ export default function HomePage() {
     sendMessage,
     createWorkspace,
     createChannel,
+    startCall,
   } = useChat();
   const callContext = useCall();
   const { toast } = useToast();

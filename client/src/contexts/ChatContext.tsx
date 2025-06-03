@@ -67,12 +67,13 @@ interface ChatContextType {
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setActiveChannel: (channel: Channel | null) => void;
   setActiveDM: (dm: DirectMessage | null) => void;
-  sendMessage: (content: string) => Promise<boolean>;
+  sendMessage: (content: string, channelId?: number, directMessageId?: number, messageType?: string, mediaFile?: File) => Promise<boolean>;
   loadMoreMessages: () => Promise<boolean>;
   refreshChannels: () => Promise<void>;
   createChannel: (name: string, isPrivate?: boolean, description?: string) => Promise<Channel | null>;
   createWorkspace: (name: string, description?: string) => Promise<Workspace | null>;
   startDirectMessage: (userId: number) => Promise<DirectMessage | null>;
+  startCall: (type: 'audio' | 'video') => Promise<void>;
 }
 
 export const ChatContext = createContext<ChatContextType | null>(null);
@@ -551,7 +552,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         refreshChannels,
         createChannel,
         createWorkspace,
-        startDirectMessage
+        startDirectMessage,
+        startCall
       }}
     >
       {children}
