@@ -760,7 +760,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const channelId = parseInt(req.params.id);
       const userId = (req.user as any).id;
-      const targetUserId = parseInt(req.body.userId);
+      const username = req.body.username;
+      
+      if (!username) {
+        return res.status(400).json({ message: 'Username is required' });
+      }
+      
+      // Find user by username
+      const targetUser = await storage.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
       
       // Get the channel
       const channel = await storage.getChannel(channelId);
@@ -774,13 +784,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have access to this workspace' });
       }
       
+      // Check if target user is already in the channel
+      const isAlreadyMember = await storage.isUserInChannel(targetUser.id, channelId);
+      if (isAlreadyMember) {
+        return res.status(409).json({ message: 'User is already a member of this channel' });
+      }
+      
       // Check if the target user is a member of the workspace
-      const isTargetInWorkspace = await storage.isUserInWorkspace(targetUserId, channel.workspaceId);
+      const isTargetInWorkspace = await storage.isUserInWorkspace(targetUser.id, channel.workspaceId);
       if (!isTargetInWorkspace) {
         // Automatically add user to workspace when adding to channel
         await storage.addWorkspaceMember({
           workspaceId: channel.workspaceId,
-          userId: targetUserId,
+          userId: targetUser.id,
           role: 'member'
         });
       }
@@ -788,11 +804,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add member to channel
       const member = await storage.addChannelMember({
         channelId,
-        userId: targetUserId
+        userId: targetUser.id
       });
       
       res.status(201).json(member);
     } catch (error) {
+      console.error('Channel member addition error:', error);
       res.status(500).json({ message: 'Failed to add member to channel' });
     }
   });
@@ -826,10 +843,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const workspaceId = parseInt(req.params.id);
       const userId = (req.user as any).id;
-      const validatedData = insertWorkspaceMemberSchema.parse({
-        ...req.body,
-        workspaceId
-      });
+      const username = req.body.username;
+      
+      if (!username) {
+        return res.status(400).json({ message: 'Username is required' });
+      }
+      
+      // Find user by username
+      const targetUser = await storage.getUserByUsername(username);
+      if (!targetUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
       
       // Check if the user is a member of the workspace
       const isUserInWorkspace = await storage.isUserInWorkspace(userId, workspaceId);
@@ -837,10 +861,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have access to this workspace' });
       }
       
+      // Check if target user is already a member
+      const isAlreadyMember = await storage.isUserInWorkspace(targetUser.id, workspaceId);
+      if (isAlreadyMember) {
+        return res.status(409).json({ message: 'User is already a member of this workspace' });
+      }
+      
       // Add member to workspace
-      const member = await storage.addWorkspaceMember(validatedData);
+      const member = await storage.addWorkspaceMember({
+        workspaceId,
+        userId: targetUser.id,
+        role: 'member'
+      });
+      
       res.status(201).json(member);
     } catch (error) {
+      console.error('Workspace member addition error:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Invalid member data', errors: error.errors });
       }
