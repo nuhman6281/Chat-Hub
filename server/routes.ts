@@ -1204,7 +1204,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       callerClients.forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
           client.ws.send(JSON.stringify({
-            type: accepted ? 'call_accepted' : 'call_rejected',
+            type: accepted ? 'call_answered' : 'call_rejected',
+            payload: {
+              callId,
+              by: {
+                id: responder.id,
+                username: responder.username,
+                displayName: responder.displayName
+              }
+            }
+          }));
+        }
+      });
+
+      // Also notify the responder about their own action
+      const responderClients = clients.filter(c => c.userId === userId);
+      responderClients.forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({
+            type: accepted ? 'call_answered' : 'call_rejected',
             payload: {
               callId,
               by: {
@@ -1253,6 +1271,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Notify other participant
       const otherClients = clients.filter(c => c.userId === otherUserId);
       otherClients.forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({
+            type: 'call_ended',
+            payload: {
+              callId,
+              endedBy: {
+                id: hangupUser!.id,
+                username: hangupUser!.username,
+                displayName: hangupUser!.displayName
+              }
+            }
+          }));
+        }
+      });
+
+      // Also notify the user who initiated the hangup
+      const initiatorClients = clients.filter(c => c.userId === userId);
+      initiatorClients.forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
           client.ws.send(JSON.stringify({
             type: 'call_ended',

@@ -74,6 +74,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [callerName, setCallerName] = useState<string | null>(null);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(true);
   const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
+  const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   
   // Ringing sound management
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
@@ -91,6 +92,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (!isConnected) return;
 
     const handleIncomingCall = (payload: any) => {
+      console.log('Incoming call received:', payload);
+      setCurrentCallId(payload.callId);
       setIncomingCall(true);
       setCallType(payload.callType);
       setCallerName(payload.from.displayName);
@@ -108,9 +111,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    const handleCallAnswered = () => {
+    const handleCallAnswered = (payload: any) => {
+      console.log('Call answered:', payload);
       stopRingtone();
       setOutgoingCall(false);
+      setIncomingCall(false);
+      setShowIncomingCall(false);
       setActiveCall(true);
       toast({
         title: 'Call answered',
@@ -118,7 +124,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    const handleCallRejected = () => {
+    const handleCallRejected = (payload: any) => {
+      console.log('Call rejected:', payload);
       stopRingtone();
       resetCallState();
       toast({
@@ -127,7 +134,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    const handleCallEnded = () => {
+    const handleCallEnded = (payload: any) => {
+      console.log('Call ended:', payload);
       stopRingtone();
       resetCallState();
       toast({
@@ -162,6 +170,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setShowIncomingCall(false);
     setCallType(null);
     setCallerName(null);
+    setCurrentCallId(null);
     setParticipants([]);
     
     // Stop local stream
@@ -188,6 +197,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setIsInitiating(true);
       setOutgoingCall(true);
       setCallType(type);
+      
+      // Generate call ID
+      const callId = `call_${user?.id}_${targetUserId}_${Date.now()}`;
+      setCurrentCallId(callId);
       
       // Get user media
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -254,7 +267,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify({
+          callId: `call_${user?.id}_${Date.now()}`,
+          accepted: true
+        })
       });
       
       toast({
