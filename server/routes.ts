@@ -153,9 +153,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               type: 'message_sent', 
               messageId: message.id 
             }));
-          } else if (data.directMessageId) {
+          } else if (directMessageId) {
             // Direct message
-            const dm = await storage.getDirectMessage(data.directMessageId);
+            const dm = await storage.getDirectMessage(directMessageId);
             if (!dm || (dm.user1Id !== userId && dm.user2Id !== userId)) {
               ws.send(JSON.stringify({ 
                 type: 'error', 
@@ -165,14 +165,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             const message = await storage.createMessage({
-              content: data.content,
+              content,
               userId,
               channelId: undefined,
-              directMessageId: data.directMessageId
+              directMessageId
             });
 
             // Send to both participants
-            broadcastToDirectMessage(data.directMessageId, {
+            broadcastToDirectMessage(directMessageId, {
               type: 'new_message',
               payload: message
             });
