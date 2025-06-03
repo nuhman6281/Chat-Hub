@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerHealthRoutes } from "./health";
 import { setupVite, serveStatic, log } from "./vite";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(express.json());

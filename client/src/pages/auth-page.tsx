@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 // Login form schema
 const loginSchema = z.object({
@@ -53,9 +54,16 @@ const registerSchema = z
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+// Add custom location state type
+type LocationState = {
+  from?: string;
+};
+
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as LocationState;
   const { user, isLoading, loginMutation, registerMutation } = useAuth();
 
   // Login form
@@ -93,6 +101,34 @@ export default function AuthPage() {
       // onSuccess is handled by ProtectedRoute reacting to user state change
     });
   };
+
+  // Check for a pending invite on component mount
+  useEffect(() => {
+    const pendingInvite = sessionStorage.getItem("pendingInvite");
+    if (pendingInvite) {
+      toast({
+        title: "Invitation Pending",
+        description:
+          "Please sign in or register to accept your workspace invitation",
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    // If user becomes authenticated and there's a pending invite, redirect to it
+    if (user && !isLoading) {
+      const pendingInvite = sessionStorage.getItem("pendingInvite");
+      if (pendingInvite) {
+        sessionStorage.removeItem("pendingInvite"); // Clear it so we don't redirect again
+        navigate(`/join/${pendingInvite}`);
+      } else if (locationState?.from) {
+        // Otherwise redirect to the original location
+        navigate(locationState.from);
+      } else {
+        navigate("/");
+      }
+    }
+  }, [user, isLoading, navigate, locationState]);
 
   // If loading authentication state, show a loading indicator
   if (isLoading) {

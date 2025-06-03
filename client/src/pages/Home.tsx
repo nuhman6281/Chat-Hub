@@ -185,21 +185,24 @@ export default function HomePage() {
     // Don't update URL during initial load
     if (!workspaces.length) return;
 
+    // Don't replace URLs when navigating between workspaces
+    // This allows the browser history to work properly
+    const navigateOptions = { replace: false };
+
     if (activeWorkspace && activeChannel) {
-      navigate(`/workspace/${activeWorkspace.id}/channel/${activeChannel.id}`, {
-        replace: true,
-      });
+      navigate(
+        `/workspace/${activeWorkspace.id}/channel/${activeChannel.id}`,
+        navigateOptions
+      );
     } else if (activeWorkspace && activeDM) {
       navigate(
         `/workspace/${activeWorkspace.id}/direct/${activeDM.otherUser.id}`,
-        {
-          replace: true,
-        }
+        navigateOptions
       );
     } else if (activeWorkspace) {
-      navigate(`/workspace/${activeWorkspace.id}`, { replace: true });
+      navigate(`/workspace/${activeWorkspace.id}`, navigateOptions);
     }
-  }, [activeWorkspace, activeChannel, activeDM, workspaces.length]);
+  }, [activeWorkspace, activeChannel, activeDM, workspaces.length, navigate]);
 
   // Form for creating a workspace
   const workspaceForm = useForm<CreateWorkspaceValues>({

@@ -50,6 +50,7 @@ function App() {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/invite/:token" element={<InvitePage />} />
+              <Route path="/join/:token" element={<InvitePage />} />
               <Route path="/demo" element={<TestDemo />} />
               <Route path="/test-page" element={<TestPage />} />
 

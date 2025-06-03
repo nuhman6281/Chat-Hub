@@ -401,6 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       username: "demo",
       displayName: "Demo User",
       status: "online",
+      email: "demo@example.com",
       password: "password", // This is safe because it's only used in development
     };
 
@@ -859,13 +860,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         const newMember = await storage.addWorkspaceMember(memberData);
 
-        // 7. Return success response
-        // Simply return the object created by addWorkspaceMember
-        // const createdMemberWithDetails =
-        //   await storage.getWorkspaceMemberDetails(
-        //     newMember.id // Assuming addWorkspaceMember returns an object with the new membership ID
-        //   );
+        // 7. Add the user to the general channel
+        const channels = await storage.getChannelsByWorkspaceId(workspaceId);
+        const generalChannel = channels.find(
+          (channel) => channel.name.toLowerCase() === "general"
+        );
 
+        if (generalChannel) {
+          // Add user to the general channel
+          await storage.addChannelMember({
+            channelId: generalChannel.id,
+            userId: targetUserId,
+          });
+          console.log(
+            `User ${targetUserId} added to general channel in workspace ${workspaceId}`
+          );
+        } else {
+          console.warn(`No general channel found in workspace ${workspaceId}`);
+        }
+
+        // 8. Return success response
         res.status(201).json(newMember); // Send the newly created member object
       } catch (error) {
         // Handle Zod validation errors specifically
@@ -1221,6 +1235,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Error creating invitation:", error);
         res.status(500).json({ message: "Failed to create invitation" });
+      }
+    }
+  );
+
+  // Verify invitation token
+  app.get("/api/invites/verify/:token", async (req: Request, res: Response) => {
+    try {
+      const token = req.params.token;
+
+      // Get invitation from database
+      const invitation = await storage.getWorkspaceInvitationByToken(token);
+
+      if (!invitation || new Date(invitation.expiresAt) < new Date()) {
+        return res
+          .status(404)
+          .json({ message: "Invalid or expired invitation link" });
+      }
+
+      // Get workspace and inviter information
+      const workspace = await storage.getWorkspace(invitation.workspaceId);
+      const inviter = await storage.getUser(invitation.invitedByUserId);
+
+      if (!workspace || !inviter) {
+        return res
+          .status(404)
+          .json({ message: "Workspace or inviter not found" });
+      }
+
+      // Return invitation details
+      res.json({
+        workspaceId: workspace.id,
+        workspaceName: workspace.name,
+        inviterName: inviter.displayName || inviter.username,
+        role: "member", // Default role
+      });
+    } catch (error) {
+      console.error("Error verifying invitation:", error);
+      res.status(500).json({ message: "Failed to verify invitation" });
+    }
+  });
+
+  // Accept invitation
+  app.post(
+    "/api/invites/accept/:token",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const token = req.params.token;
+        const userId = (req.user as any).id;
+
+        // Get invitation from database
+        const invitation = await storage.getWorkspaceInvitationByToken(token);
+
+        if (!invitation || new Date(invitation.expiresAt) < new Date()) {
+          return res
+            .status(404)
+            .json({ message: "Invalid or expired invitation link" });
+        }
+
+        // Check if user is already a member
+        const isMember = await storage.isUserInWorkspace(
+          userId,
+          invitation.workspaceId
+        );
+        if (isMember) {
+          return res
+            .status(400)
+            .json({ message: "You are already a member of this workspace" });
+        }
+
+        // Add user to workspace
+        const memberData = {
+          userId,
+          workspaceId: invitation.workspaceId,
+          role: "member",
+        };
+
+        await storage.addWorkspaceMember(memberData);
+
+        // Find and add user to the "general" channel of the workspace
+        const channels = await storage.getChannelsByWorkspaceId(
+          invitation.workspaceId
+        );
+        const generalChannel = channels.find(
+          (channel) => channel.name.toLowerCase() === "general"
+        );
+
+        if (generalChannel) {
+          // Add user to the general channel
+          await storage.addChannelMember({
+            channelId: generalChannel.id,
+            userId,
+          });
+          console.log(
+            `User ${userId} added to general channel in workspace ${invitation.workspaceId}`
+          );
+        } else {
+          console.warn(
+            `No general channel found in workspace ${invitation.workspaceId}`
+          );
+        }
+
+        // Delete the invitation after acceptance to prevent reuse
+        await storage.deleteWorkspaceInvitation(invitation.id);
+
+        res.json({ message: "Successfully joined workspace" });
+      } catch (error) {
+        console.error("Error accepting invitation:", error);
+        res.status(500).json({ message: "Failed to accept invitation" });
+      }
+    }
+  );
+
+  // Add API endpoint to add current user to channel
+  app.post(
+    "/api/channels/:id/join",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const channelId = parseInt(req.params.id);
+        const userId = (req.user as any).id;
+
+        // Get the channel
+        const channel = await storage.getChannel(channelId);
+        if (!channel) {
+          return res.status(404).json({ message: "Channel not found" });
+        }
+
+        // Check if user is a member of the workspace
+        const isUserInWorkspace = await storage.isUserInWorkspace(
+          userId,
+          channel.workspaceId
+        );
+        if (!isUserInWorkspace) {
+          return res
+            .status(403)
+            .json({ message: "You do not have access to this workspace" });
+        }
+
+        // Check if user is already a member of the channel
+        const isUserInChannel = await storage.isUserInChannel(
+          userId,
+          channelId
+        );
+        if (isUserInChannel) {
+          return res
+            .status(400)
+            .json({ message: "You are already a member of this channel" });
+        }
+
+        // Add user to channel
+        const member = await storage.addChannelMember({
+          channelId,
+          userId,
+        });
+
+        res.status(201).json(member);
+      } catch (error) {
+        console.error("Error joining channel:", error);
+        res.status(500).json({ message: "Failed to join channel" });
       }
     }
   );

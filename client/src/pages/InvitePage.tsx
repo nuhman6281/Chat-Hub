@@ -87,8 +87,9 @@ export default function InvitePage() {
           description: `You've joined ${inviteInfo.workspaceName}`,
         });
 
-        // Navigate to the workspace
-        navigate("/");
+        // Force a refresh of workspaces by navigating to the root
+        // This will trigger the useEffect in ChatContext that fetches workspaces
+        window.location.href = "/"; // Using window.location to force a full reload
       } else {
         const errorData = await response.json();
         setError(errorData.message || "Failed to join workspace");

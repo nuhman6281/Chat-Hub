@@ -97,6 +97,13 @@ export interface IStorage {
   createWorkspaceInvitation(
     data: InsertWorkspaceInvitation
   ): Promise<WorkspaceInvitation>;
+  getWorkspaceInvitationByToken(
+    token: string
+  ): Promise<WorkspaceInvitation | null>;
+  deleteWorkspaceInvitation(id: number): Promise<boolean>;
+
+  // Search users by username or display name
+  searchUsers(searchTerm: string): Promise<User[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -235,20 +242,20 @@ export class MemStorage implements IStorage {
   }
 
   // Workspace operations
-  async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
+  async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
     const id = this.workspaceId++;
     const now = new Date();
-    const workspace: Workspace = { ...insertWorkspace, id, createdAt: now };
-    this.workspaces.set(id, workspace);
+    const newWorkspace: Workspace = { ...workspace, id, createdAt: now };
+    this.workspaces.set(id, newWorkspace);
 
-    // Automatically add the owner as a member with 'owner' role
+    // Add the owner as a member
     await this.addWorkspaceMember({
       workspaceId: id,
-      userId: insertWorkspace.ownerId,
+      userId: workspace.ownerId,
       role: "owner",
     });
 
-    // Create a default general channel
+    // Create a default "general" channel
     await this.createChannel({
       name: "general",
       workspaceId: id,
@@ -256,7 +263,7 @@ export class MemStorage implements IStorage {
       isPrivate: false,
     });
 
-    return workspace;
+    return newWorkspace;
   }
 
   async getWorkspace(id: number): Promise<Workspace | undefined> {
@@ -375,14 +382,12 @@ export class MemStorage implements IStorage {
   }
 
   // Direct Message operations
-  async createDirectMessage(
-    insertDM: InsertDirectMessage
-  ): Promise<DirectMessage> {
+  async createDirectMessage(dm: InsertDirectMessage): Promise<DirectMessage> {
     const id = this.directMessageId++;
     const now = new Date();
-    const dm: DirectMessage = { ...insertDM, id, createdAt: now };
-    this.directMessages.set(id, dm);
-    return dm;
+    const directMessage: DirectMessage = { ...dm, id, createdAt: now };
+    this.directMessages.set(id, directMessage);
+    return directMessage;
   }
 
   async getDirectMessage(id: number): Promise<DirectMessage | undefined> {
@@ -431,16 +436,16 @@ export class MemStorage implements IStorage {
 
   // Workspace membership operations
   async addWorkspaceMember(
-    insertMember: InsertWorkspaceMember
+    member: InsertWorkspaceMember
   ): Promise<WorkspaceMember> {
     const id = this.workspaceMemberId++;
-    const member: WorkspaceMember = {
-      ...insertMember,
+    const newMember: WorkspaceMember = {
+      ...member,
       id,
-      role: insertMember.role || "member",
+      role: member.role || "member",
     };
-    this.workspaceMembers.set(id, member);
-    return member;
+    this.workspaceMembers.set(id, newMember);
+    return newMember;
   }
 
   async getWorkspaceMembersByWorkspaceId(
@@ -546,6 +551,34 @@ export class MemStorage implements IStorage {
     );
   }
 
+  // Workspace invitation operations
+  async createWorkspaceInvitation(
+    data: InsertWorkspaceInvitation
+  ): Promise<WorkspaceInvitation> {
+    // Implementation needed
+    throw new Error("Method not implemented");
+  }
+
+  async getWorkspaceInvitationByToken(
+    token: string
+  ): Promise<WorkspaceInvitation | null> {
+    // Since this is just a memory implementation for testing, we'll return null
+    // In a real implementation, we would search for the invitation by token
+    console.warn(
+      "MemStorage.getWorkspaceInvitationByToken is not fully implemented"
+    );
+    return null;
+  }
+
+  async deleteWorkspaceInvitation(id: number): Promise<boolean> {
+    // Since this is just a memory implementation for testing, we'll return true
+    // In a real implementation, we would remove the invitation from storage
+    console.warn(
+      "MemStorage.deleteWorkspaceInvitation is not fully implemented"
+    );
+    return true;
+  }
+
   // Search users by username or display name
   async searchUsers(searchTerm: string): Promise<User[]> {
     return Array.from(this.users.values()).filter((user) => {
@@ -554,517 +587,6 @@ export class MemStorage implements IStorage {
         user.displayName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     });
-  }
-
-  // Workspace invitation operations
-  async createWorkspaceInvitation(
-    data: InsertWorkspaceInvitation
-  ): Promise<WorkspaceInvitation> {
-    // Implementation needed
-    throw new Error("Method not implemented");
-  }
-}
-
-export class DatabaseStorage implements IStorage {
-  private db: NodePgDatabase;
-
-  constructor(databaseClient: NodePgDatabase) {
-    this.db = databaseClient;
-  }
-
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await this.db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    console.log(`DatabaseStorage: Attempting to find user by email: ${email}`);
-    try {
-      const result = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.email, email.toLowerCase()))
-        .limit(1);
-
-      console.log(`DatabaseStorage: Found user by email result:`, result[0]);
-      if (result && result.length > 0) {
-        return result[0] as User;
-      } else {
-        return undefined;
-      }
-    } catch (error) {
-      console.error(
-        `DatabaseStorage: Error fetching user by email ${email}:`,
-        error
-      );
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Database error fetching user by email: ${errorMessage}`);
-    }
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    if (insertUser.password && !insertUser.password.startsWith("$2b$")) {
-      const hashedPassword = await bcrypt.hash(insertUser.password, 10);
-      insertUser.password = hashedPassword;
-    }
-
-    const userToInsert = {
-      ...insertUser,
-      status: "online",
-      avatarUrl: insertUser.avatarUrl || null,
-    };
-
-    const [user] = await this.db.insert(users).values(userToInsert).returning();
-    return user;
-  }
-
-  async updateUserStatus(
-    id: number,
-    status: string
-  ): Promise<User | undefined> {
-    const [updatedUser] = await this.db
-      .update(users)
-      .set({ status })
-      .where(eq(users.id, id))
-      .returning();
-
-    return updatedUser || undefined;
-  }
-
-  async createWorkspace(insertWorkspace: InsertWorkspace): Promise<Workspace> {
-    return await this.db.transaction(async (tx) => {
-      const [workspace] = await tx
-        .insert(workspaces)
-        .values(insertWorkspace)
-        .returning();
-
-      await tx.insert(workspaceMembers).values({
-        workspaceId: workspace.id,
-        userId: insertWorkspace.ownerId,
-        role: "owner",
-      });
-
-      const [channel] = await tx
-        .insert(channels)
-        .values({
-          name: "general",
-          workspaceId: workspace.id,
-          description: "General discussions",
-          isPrivate: false,
-        })
-        .returning();
-
-      await tx.insert(channelMembers).values({
-        channelId: channel.id,
-        userId: insertWorkspace.ownerId,
-      });
-
-      return workspace;
-    });
-  }
-
-  async getWorkspace(id: number): Promise<Workspace | undefined> {
-    const [workspace] = await this.db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, id));
-
-    return workspace || undefined;
-  }
-
-  async getWorkspacesByUserId(userId: number): Promise<Workspace[]> {
-    return await this.db
-      .select({
-        id: workspaces.id,
-        name: workspaces.name,
-        ownerId: workspaces.ownerId,
-        iconText: workspaces.iconText,
-        createdAt: workspaces.createdAt,
-      })
-      .from(workspaces)
-      .innerJoin(
-        workspaceMembers,
-        eq(workspaces.id, workspaceMembers.workspaceId)
-      )
-      .where(eq(workspaceMembers.userId, userId));
-  }
-
-  async createChannel(insertChannel: InsertChannel): Promise<Channel> {
-    const [channel] = await this.db
-      .insert(channels)
-      .values({
-        ...insertChannel,
-        description: insertChannel.description || null,
-        isPrivate: insertChannel.isPrivate || false,
-      })
-      .returning();
-
-    return channel;
-  }
-
-  async getChannel(id: number): Promise<Channel | undefined> {
-    const [channel] = await this.db
-      .select()
-      .from(channels)
-      .where(eq(channels.id, id));
-
-    return channel || undefined;
-  }
-
-  async getChannelsByWorkspaceId(
-    workspaceId: number
-  ): Promise<ChannelWithMemberCount[]> {
-    return await this.db
-      .select({
-        id: channels.id,
-        name: channels.name,
-        workspaceId: channels.workspaceId,
-        description: channels.description,
-        isPrivate: channels.isPrivate,
-        createdAt: channels.createdAt,
-        memberCount: count(channelMembers.id).as("memberCount"),
-      })
-      .from(channels)
-      .leftJoin(channelMembers, eq(channels.id, channelMembers.channelId))
-      .where(eq(channels.workspaceId, workspaceId))
-      .groupBy(channels.id);
-  }
-
-  async createMessage(insertMessage: InsertMessage): Promise<MessageWithUser> {
-    const [message] = await this.db
-      .insert(messages)
-      .values({
-        ...insertMessage,
-        channelId: insertMessage.channelId || null,
-        directMessageId: insertMessage.directMessageId || null,
-      })
-      .returning();
-
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.id, message.userId));
-
-    if (!user) {
-      throw new Error(`User with id ${message.userId} not found`);
-    }
-
-    return { ...message, user };
-  }
-
-  async getMessagesByChannelId(channelId: number): Promise<MessageWithUser[]> {
-    return await this.db
-      .select({
-        id: messages.id,
-        content: messages.content,
-        userId: messages.userId,
-        channelId: messages.channelId,
-        directMessageId: messages.directMessageId,
-        createdAt: messages.createdAt,
-        user: users,
-      })
-      .from(messages)
-      .innerJoin(users, eq(messages.userId, users.id))
-      .where(eq(messages.channelId, channelId))
-      .orderBy(messages.createdAt);
-  }
-
-  async getMessagesByDirectMessageId(
-    directMessageId: number
-  ): Promise<MessageWithUser[]> {
-    return await this.db
-      .select({
-        id: messages.id,
-        content: messages.content,
-        userId: messages.userId,
-        channelId: messages.channelId,
-        directMessageId: messages.directMessageId,
-        createdAt: messages.createdAt,
-        user: users,
-      })
-      .from(messages)
-      .innerJoin(users, eq(messages.userId, users.id))
-      .where(eq(messages.directMessageId, directMessageId))
-      .orderBy(messages.createdAt);
-  }
-
-  async createDirectMessage(
-    insertDM: InsertDirectMessage
-  ): Promise<DirectMessage> {
-    const [dm] = await this.db
-      .insert(directMessages)
-      .values(insertDM)
-      .returning();
-
-    return dm;
-  }
-
-  async getDirectMessage(id: number): Promise<DirectMessage | undefined> {
-    const [dm] = await this.db
-      .select()
-      .from(directMessages)
-      .where(eq(directMessages.id, id));
-
-    return dm || undefined;
-  }
-
-  async getDirectMessageByUserIds(
-    user1Id: number,
-    user2Id: number
-  ): Promise<DirectMessage | undefined> {
-    const [dm] = await this.db
-      .select()
-      .from(directMessages)
-      .where(
-        or(
-          and(
-            eq(directMessages.user1Id, user1Id),
-            eq(directMessages.user2Id, user2Id)
-          ),
-          and(
-            eq(directMessages.user1Id, user2Id),
-            eq(directMessages.user2Id, user1Id)
-          )
-        )
-      );
-
-    return dm || undefined;
-  }
-
-  async getDirectMessagesByUserId(
-    userId: number
-  ): Promise<DirectMessageWithUser[]> {
-    const results = await this.db.transaction(async (tx) => {
-      const directMessagesForUser = await tx
-        .select()
-        .from(directMessages)
-        .where(
-          or(
-            eq(directMessages.user1Id, userId),
-            eq(directMessages.user2Id, userId)
-          )
-        );
-
-      return await Promise.all(
-        directMessagesForUser.map(async (dm) => {
-          const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
-
-          const [otherUser] = await tx
-            .select()
-            .from(users)
-            .where(eq(users.id, otherUserId));
-
-          if (!otherUser) {
-            throw new Error(`User with id ${otherUserId} not found`);
-          }
-
-          const [lastMessage] = await tx
-            .select({
-              id: messages.id,
-              content: messages.content,
-              userId: messages.userId,
-              channelId: messages.channelId,
-              directMessageId: messages.directMessageId,
-              createdAt: messages.createdAt,
-              user: users,
-            })
-            .from(messages)
-            .innerJoin(users, eq(messages.userId, users.id))
-            .where(eq(messages.directMessageId, dm.id))
-            .orderBy(desc(messages.createdAt))
-            .limit(1);
-
-          return {
-            ...dm,
-            otherUser,
-            lastMessage,
-          };
-        })
-      );
-    });
-
-    return results;
-  }
-
-  async addWorkspaceMember(
-    insertMember: InsertWorkspaceMember
-  ): Promise<WorkspaceMember> {
-    const [member] = await this.db
-      .insert(workspaceMembers)
-      .values({
-        ...insertMember,
-        role: insertMember.role || "member",
-      })
-      .returning();
-
-    return member;
-  }
-
-  async getWorkspaceMembersByWorkspaceId(
-    workspaceId: number
-  ): Promise<(WorkspaceMember & { user: User })[]> {
-    return await this.db
-      .select({
-        id: workspaceMembers.id,
-        workspaceId: workspaceMembers.workspaceId,
-        userId: workspaceMembers.userId,
-        role: workspaceMembers.role,
-        user: users,
-      })
-      .from(workspaceMembers)
-      .innerJoin(users, eq(workspaceMembers.userId, users.id))
-      .where(eq(workspaceMembers.workspaceId, workspaceId));
-  }
-
-  async getWorkspaceMember(
-    userId: number,
-    workspaceId: number
-  ): Promise<WorkspaceMember | undefined> {
-    const [member] = await this.db
-      .select()
-      .from(workspaceMembers)
-      .where(
-        and(
-          eq(workspaceMembers.userId, userId),
-          eq(workspaceMembers.workspaceId, workspaceId)
-        )
-      )
-      .limit(1);
-    return member;
-  }
-
-  async isUserInWorkspace(
-    userId: number,
-    workspaceId: number
-  ): Promise<boolean> {
-    const result = await this.db
-      .select({ memberCount: count() })
-      .from(workspaceMembers)
-      .where(
-        and(
-          eq(workspaceMembers.userId, userId),
-          eq(workspaceMembers.workspaceId, workspaceId)
-        )
-      );
-
-    return result[0].memberCount > 0;
-  }
-
-  async updateWorkspaceMemberRole(
-    userId: number,
-    workspaceId: number,
-    role: string
-  ): Promise<WorkspaceMember | undefined> {
-    const [updatedMember] = await this.db
-      .update(workspaceMembers)
-      .set({ role })
-      .where(
-        and(
-          eq(workspaceMembers.userId, userId),
-          eq(workspaceMembers.workspaceId, workspaceId)
-        )
-      )
-      .returning();
-    return updatedMember;
-  }
-
-  async removeWorkspaceMember(
-    userId: number,
-    workspaceId: number
-  ): Promise<boolean> {
-    const result = await this.db
-      .delete(workspaceMembers)
-      .where(
-        and(
-          eq(workspaceMembers.userId, userId),
-          eq(workspaceMembers.workspaceId, workspaceId)
-        )
-      );
-    return result?.rowCount ? result.rowCount > 0 : false;
-  }
-
-  async getWorkspaceOwners(workspaceId: number): Promise<WorkspaceMember[]> {
-    return await this.db
-      .select()
-      .from(workspaceMembers)
-      .where(
-        and(
-          eq(workspaceMembers.workspaceId, workspaceId),
-          eq(workspaceMembers.role, "owner")
-        )
-      );
-  }
-
-  async addChannelMember(
-    insertMember: InsertChannelMember
-  ): Promise<ChannelMember> {
-    const [member] = await this.db
-      .insert(channelMembers)
-      .values(insertMember)
-      .returning();
-
-    return member;
-  }
-
-  async getChannelMembersByChannelId(
-    channelId: number
-  ): Promise<(ChannelMember & { user: User })[]> {
-    return await this.db
-      .select({
-        id: channelMembers.id,
-        channelId: channelMembers.channelId,
-        userId: channelMembers.userId,
-        user: users,
-      })
-      .from(channelMembers)
-      .innerJoin(users, eq(channelMembers.userId, users.id))
-      .where(eq(channelMembers.channelId, channelId));
-  }
-
-  async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
-    const result = await this.db
-      .select({ memberCount: count() })
-      .from(channelMembers)
-      .where(
-        and(
-          eq(channelMembers.userId, userId),
-          eq(channelMembers.channelId, channelId)
-        )
-      );
-
-    return result[0].memberCount > 0;
-  }
-
-  async searchUsers(searchTerm: string): Promise<User[]> {
-    return await this.db
-      .select()
-      .from(users)
-      .where(
-        or(
-          ilike(users.username, `%${searchTerm}%`),
-          ilike(users.displayName, `%${searchTerm}%`)
-        )
-      )
-      .limit(20);
-  }
-
-  async createWorkspaceInvitation(
-    data: InsertWorkspaceInvitation
-  ): Promise<WorkspaceInvitation> {
-    const [invitation] = await this.db
-      .insert(workspaceInvitations)
-      .values(data)
-      .returning();
-    return invitation;
   }
 }
 
@@ -1078,6 +600,633 @@ if (!databaseUrl) {
 // Initialize the Drizzle client
 // Assuming NodePgDatabase is the correct type for your setup
 const dbClient: NodePgDatabase = drizzle(databaseUrl);
+
+export class DatabaseStorage implements IStorage {
+  private db: NodePgDatabase;
+
+  constructor(databaseClient: NodePgDatabase) {
+    this.db = databaseClient;
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    try {
+      const [user] = await this.db
+        .select()
+        .from(users)
+        .where(sql`${users.id} = ${id}`)
+        .limit(1);
+      return user;
+    } catch (error) {
+      console.error("Error getting user by ID:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      const [user] = await this.db
+        .select()
+        .from(users)
+        .where(sql`${users.username} = ${username}`)
+        .limit(1);
+      return user;
+    } catch (error) {
+      console.error("Error getting user by username:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      const [user] = await this.db
+        .select()
+        .from(users)
+        .where(sql`${users.email} = ${email}`)
+        .limit(1);
+      return user;
+    } catch (error) {
+      console.error("Error getting user by email:", error);
+      return undefined;
+    }
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    try {
+      const [newUser] = await this.db
+        .insert(users)
+        .values(userData)
+        .returning();
+      return newUser;
+    } catch (error) {
+      console.error("Error creating user:", error);
+      throw new Error(`Failed to create user: ${error.message}`);
+    }
+  }
+
+  async updateUserStatus(
+    id: number,
+    status: string
+  ): Promise<User | undefined> {
+    try {
+      const [updatedUser] = await this.db
+        .update(users)
+        .set({ status })
+        .where(sql`${users.id} = ${id}`)
+        .returning();
+      return updatedUser;
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      return undefined;
+    }
+  }
+
+  // Workspace operations
+  async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
+    try {
+      const [newWorkspace] = await this.db
+        .insert(workspaces)
+        .values(workspace)
+        .returning();
+
+      // Add the owner as a member
+      await this.addWorkspaceMember({
+        workspaceId: newWorkspace.id,
+        userId: workspace.ownerId,
+        role: "owner",
+      });
+
+      // Create a default "general" channel
+      await this.createChannel({
+        name: "general",
+        workspaceId: newWorkspace.id,
+        description: "General discussions",
+        isPrivate: false,
+      });
+
+      return newWorkspace;
+    } catch (error) {
+      console.error("Error creating workspace:", error);
+      throw new Error(`Failed to create workspace: ${error.message}`);
+    }
+  }
+
+  async getWorkspace(id: number): Promise<Workspace | undefined> {
+    try {
+      const [workspace] = await this.db
+        .select()
+        .from(workspaces)
+        .where(sql`${workspaces.id} = ${id}`)
+        .limit(1);
+      return workspace;
+    } catch (error) {
+      console.error("Error getting workspace:", error);
+      return undefined;
+    }
+  }
+
+  async getWorkspacesByUserId(userId: number): Promise<Workspace[]> {
+    try {
+      // Join workspaces with workspaceMembers to get workspaces where user is a member
+      const result = await this.db
+        .select({
+          id: workspaces.id,
+          name: workspaces.name,
+          ownerId: workspaces.ownerId,
+          iconText: workspaces.iconText,
+          createdAt: workspaces.createdAt,
+        })
+        .from(workspaces)
+        .innerJoin(
+          workspaceMembers,
+          sql`${workspaceMembers.workspaceId} = ${workspaces.id}`
+        )
+        .where(sql`${workspaceMembers.userId} = ${userId}`);
+
+      return result;
+    } catch (error) {
+      console.error("Error getting workspaces by user ID:", error);
+      return [];
+    }
+  }
+
+  // Channel operations
+  async createChannel(channel: InsertChannel): Promise<Channel> {
+    try {
+      const [newChannel] = await this.db
+        .insert(channels)
+        .values(channel)
+        .returning();
+      return newChannel;
+    } catch (error) {
+      console.error("Error creating channel:", error);
+      throw new Error(`Failed to create channel: ${error.message}`);
+    }
+  }
+
+  async getChannel(id: number): Promise<Channel | undefined> {
+    try {
+      const [channel] = await this.db
+        .select()
+        .from(channels)
+        .where(sql`${channels.id} = ${id}`)
+        .limit(1);
+      return channel;
+    } catch (error) {
+      console.error("Error getting channel:", error);
+      return undefined;
+    }
+  }
+
+  async getChannelsByWorkspaceId(
+    workspaceId: number
+  ): Promise<ChannelWithMemberCount[]> {
+    try {
+      // Get all channels in the workspace
+      const channelsData = await this.db
+        .select()
+        .from(channels)
+        .where(sql`${channels.workspaceId} = ${workspaceId}`);
+
+      // For each channel, count its members
+      const result = await Promise.all(
+        channelsData.map(async (channel) => {
+          // Count members in each channel
+          const [{ count: memberCount }] = await this.db
+            .select({ count: count() })
+            .from(channelMembers)
+            .where(sql`${channelMembers.channelId} = ${channel.id}`);
+
+          return {
+            ...channel,
+            memberCount: Number(memberCount) || 0,
+          };
+        })
+      );
+
+      return result;
+    } catch (error) {
+      console.error("Error getting channels by workspace ID:", error);
+      return [];
+    }
+  }
+
+  // Message operations
+  async createMessage(message: InsertMessage): Promise<MessageWithUser> {
+    try {
+      // Insert the message into the database
+      const [newMessage] = await this.db
+        .insert(messages)
+        .values({
+          ...message,
+          channelId: message.channelId || null,
+          directMessageId: message.directMessageId || null,
+        })
+        .returning();
+
+      // Get the user who sent the message to include in the response
+      const user = await this.getUser(message.userId);
+      if (!user) {
+        throw new Error(`User with id ${message.userId} not found`);
+      }
+
+      // Return the message with user information
+      return { ...newMessage, user };
+    } catch (error) {
+      console.error("Error creating message:", error);
+      throw new Error(`Failed to create message: ${error.message}`);
+    }
+  }
+
+  async getMessagesByChannelId(channelId: number): Promise<MessageWithUser[]> {
+    try {
+      const messagesData = await this.db
+        .select({
+          message: messages,
+          user: users,
+        })
+        .from(messages)
+        .innerJoin(users, sql`${users.id} = ${messages.userId}`)
+        .where(sql`${messages.channelId} = ${channelId}`)
+        .orderBy(messages.createdAt);
+
+      return messagesData.map((item) => ({
+        ...item.message,
+        user: item.user,
+      }));
+    } catch (error) {
+      console.error("Error getting messages by channel ID:", error);
+      return [];
+    }
+  }
+
+  async getMessagesByDirectMessageId(
+    directMessageId: number
+  ): Promise<MessageWithUser[]> {
+    try {
+      const messagesData = await this.db
+        .select({
+          message: messages,
+          user: users,
+        })
+        .from(messages)
+        .innerJoin(users, sql`${users.id} = ${messages.userId}`)
+        .where(sql`${messages.directMessageId} = ${directMessageId}`)
+        .orderBy(messages.createdAt);
+
+      return messagesData.map((item) => ({
+        ...item.message,
+        user: item.user,
+      }));
+    } catch (error) {
+      console.error("Error getting messages by direct message ID:", error);
+      return [];
+    }
+  }
+
+  // Direct Message operations
+  async createDirectMessage(dm: InsertDirectMessage): Promise<DirectMessage> {
+    try {
+      const [directMessage] = await this.db
+        .insert(directMessages)
+        .values(dm)
+        .returning();
+      return directMessage;
+    } catch (error) {
+      console.error("Error creating direct message:", error);
+      throw new Error(`Failed to create direct message: ${error.message}`);
+    }
+  }
+
+  async getDirectMessage(id: number): Promise<DirectMessage | undefined> {
+    try {
+      const [dm] = await this.db
+        .select()
+        .from(directMessages)
+        .where(sql`${directMessages.id} = ${id}`)
+        .limit(1);
+      return dm;
+    } catch (error) {
+      console.error("Error getting direct message:", error);
+      return undefined;
+    }
+  }
+
+  async getDirectMessageByUserIds(
+    user1Id: number,
+    user2Id: number
+  ): Promise<DirectMessage | undefined> {
+    try {
+      // Check both possible combinations of user IDs
+      const [dm] = await this.db
+        .select()
+        .from(directMessages)
+        .where(
+          sql`(${directMessages.user1Id} = ${user1Id} AND ${directMessages.user2Id} = ${user2Id}) OR 
+              (${directMessages.user1Id} = ${user2Id} AND ${directMessages.user2Id} = ${user1Id})`
+        )
+        .limit(1);
+      return dm;
+    } catch (error) {
+      console.error("Error getting direct message by user IDs:", error);
+      return undefined;
+    }
+  }
+
+  async getDirectMessagesByUserId(
+    userId: number
+  ): Promise<DirectMessageWithUser[]> {
+    try {
+      // Get direct messages where user is either user1 or user2
+      const dms = await this.db
+        .select()
+        .from(directMessages)
+        .where(
+          sql`${directMessages.user1Id} = ${userId} OR ${directMessages.user2Id} = ${userId}`
+        );
+
+      // For each DM, get the other user and the last message
+      const enrichedDms = await Promise.all(
+        dms.map(async (dm) => {
+          const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
+          const otherUser = await this.getUser(otherUserId);
+
+          if (!otherUser) {
+            throw new Error(`User with ID ${otherUserId} not found`);
+          }
+
+          // Get the most recent message
+          const messages = await this.getMessagesByDirectMessageId(dm.id);
+          const lastMessage =
+            messages.length > 0 ? messages[messages.length - 1] : undefined;
+
+          return {
+            ...dm,
+            otherUser,
+            lastMessage,
+          };
+        })
+      );
+
+      return enrichedDms;
+    } catch (error) {
+      console.error("Error getting direct messages by user ID:", error);
+      return [];
+    }
+  }
+
+  // Workspace membership operations
+  async addWorkspaceMember(
+    member: InsertWorkspaceMember
+  ): Promise<WorkspaceMember> {
+    try {
+      const [newMember] = await this.db
+        .insert(workspaceMembers)
+        .values(member)
+        .returning();
+      return newMember;
+    } catch (error) {
+      console.error("Error adding workspace member:", error);
+      throw new Error(`Failed to add workspace member: ${error.message}`);
+    }
+  }
+
+  async getWorkspaceMembersByWorkspaceId(
+    workspaceId: number
+  ): Promise<(WorkspaceMember & { user: User })[]> {
+    try {
+      const members = await this.db
+        .select({
+          id: workspaceMembers.id,
+          workspaceId: workspaceMembers.workspaceId,
+          userId: workspaceMembers.userId,
+          role: workspaceMembers.role,
+          user: users,
+        })
+        .from(workspaceMembers)
+        .innerJoin(users, sql`${users.id} = ${workspaceMembers.userId}`)
+        .where(sql`${workspaceMembers.workspaceId} = ${workspaceId}`);
+
+      return members.map((member) => ({
+        id: member.id,
+        workspaceId: member.workspaceId,
+        userId: member.userId,
+        role: member.role,
+        user: member.user,
+      }));
+    } catch (error) {
+      console.error("Error getting workspace members:", error);
+      return [];
+    }
+  }
+
+  async getWorkspaceMember(
+    userId: number,
+    workspaceId: number
+  ): Promise<WorkspaceMember | undefined> {
+    try {
+      const [member] = await this.db
+        .select()
+        .from(workspaceMembers)
+        .where(
+          sql`${workspaceMembers.userId} = ${userId} AND ${workspaceMembers.workspaceId} = ${workspaceId}`
+        )
+        .limit(1);
+      return member;
+    } catch (error) {
+      console.error("Error getting workspace member:", error);
+      return undefined;
+    }
+  }
+
+  async isUserInWorkspace(
+    userId: number,
+    workspaceId: number
+  ): Promise<boolean> {
+    try {
+      const member = await this.getWorkspaceMember(userId, workspaceId);
+      return !!member;
+    } catch (error) {
+      console.error("Error checking if user is in workspace:", error);
+      return false;
+    }
+  }
+
+  async updateWorkspaceMemberRole(
+    userId: number,
+    workspaceId: number,
+    role: string
+  ): Promise<WorkspaceMember | undefined> {
+    try {
+      const [updatedMember] = await this.db
+        .update(workspaceMembers)
+        .set({ role })
+        .where(
+          sql`${workspaceMembers.userId} = ${userId} AND ${workspaceMembers.workspaceId} = ${workspaceId}`
+        )
+        .returning();
+      return updatedMember;
+    } catch (error) {
+      console.error("Error updating workspace member role:", error);
+      return undefined;
+    }
+  }
+
+  async removeWorkspaceMember(
+    userId: number,
+    workspaceId: number
+  ): Promise<boolean> {
+    try {
+      const result = await this.db
+        .delete(workspaceMembers)
+        .where(
+          sql`${workspaceMembers.userId} = ${userId} AND ${workspaceMembers.workspaceId} = ${workspaceId}`
+        );
+      return true;
+    } catch (error) {
+      console.error("Error removing workspace member:", error);
+      return false;
+    }
+  }
+
+  async getWorkspaceOwners(workspaceId: number): Promise<WorkspaceMember[]> {
+    try {
+      const owners = await this.db
+        .select()
+        .from(workspaceMembers)
+        .where(
+          sql`${workspaceMembers.workspaceId} = ${workspaceId} AND ${workspaceMembers.role} = 'owner'`
+        );
+      return owners;
+    } catch (error) {
+      console.error("Error getting workspace owners:", error);
+      return [];
+    }
+  }
+
+  // Channel membership operations
+  async addChannelMember(member: InsertChannelMember): Promise<ChannelMember> {
+    try {
+      const [newMember] = await this.db
+        .insert(channelMembers)
+        .values(member)
+        .returning();
+      return newMember;
+    } catch (error) {
+      console.error("Error adding channel member:", error);
+      throw new Error(`Failed to add channel member: ${error.message}`);
+    }
+  }
+
+  async getChannelMembersByChannelId(
+    channelId: number
+  ): Promise<(ChannelMember & { user: User })[]> {
+    try {
+      const members = await this.db
+        .select({
+          id: channelMembers.id,
+          channelId: channelMembers.channelId,
+          userId: channelMembers.userId,
+          user: users,
+        })
+        .from(channelMembers)
+        .innerJoin(users, sql`${users.id} = ${channelMembers.userId}`)
+        .where(sql`${channelMembers.channelId} = ${channelId}`);
+
+      return members.map((member) => ({
+        id: member.id,
+        channelId: member.channelId,
+        userId: member.userId,
+        user: member.user,
+      }));
+    } catch (error) {
+      console.error("Error getting channel members:", error);
+      return [];
+    }
+  }
+
+  async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
+    try {
+      const [member] = await this.db
+        .select()
+        .from(channelMembers)
+        .where(
+          sql`${channelMembers.userId} = ${userId} AND ${channelMembers.channelId} = ${channelId}`
+        )
+        .limit(1);
+      return !!member;
+    } catch (error) {
+      console.error("Error checking if user is in channel:", error);
+      return false;
+    }
+  }
+
+  // Workspace invitation operations
+  async createWorkspaceInvitation(
+    data: InsertWorkspaceInvitation
+  ): Promise<WorkspaceInvitation> {
+    try {
+      const [invitation] = await this.db
+        .insert(workspaceInvitations)
+        .values(data)
+        .returning();
+      return invitation;
+    } catch (error) {
+      console.error("Error creating workspace invitation:", error);
+      throw new Error(
+        `Failed to create workspace invitation: ${error.message}`
+      );
+    }
+  }
+
+  async getWorkspaceInvitationByToken(
+    token: string
+  ): Promise<WorkspaceInvitation | null> {
+    try {
+      const [invitation] = await this.db
+        .select()
+        .from(workspaceInvitations)
+        .where(sql`${workspaceInvitations.token} = ${token}`)
+        .limit(1);
+
+      return invitation || null;
+    } catch (error) {
+      console.error("Error fetching workspace invitation by token:", error);
+      return null;
+    }
+  }
+
+  async deleteWorkspaceInvitation(id: number): Promise<boolean> {
+    try {
+      await this.db
+        .delete(workspaceInvitations)
+        .where(sql`${workspaceInvitations.id} = ${id}`);
+      return true;
+    } catch (error) {
+      console.error("Error deleting workspace invitation:", error);
+      return false;
+    }
+  }
+
+  // Search users by username or display name
+  async searchUsers(searchTerm: string): Promise<User[]> {
+    try {
+      const users = await this.db
+        .select()
+        .from(users)
+        .where(
+          sql`${users.username} ILIKE ${`%${searchTerm}%`} OR ${
+            users.displayName
+          } ILIKE ${`%${searchTerm}%`}`
+        )
+        .limit(20);
+
+      return users;
+    } catch (error) {
+      console.error("Error searching users:", error);
+      return [];
+    }
+  }
+}
 
 // Use the DatabaseStorage implementation and inject the db client
 export const storage = new DatabaseStorage(dbClient);

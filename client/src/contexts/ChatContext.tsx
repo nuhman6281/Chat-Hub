@@ -45,19 +45,19 @@ interface ExtendedDirectMessage extends DirectMessage {
 interface ChatContextType {
   activeWorkspace: Workspace | null;
   activeChannel: Channel | null;
-  activeDM: DirectMessage | null;
-  activeChat: Channel | DirectMessage | null;
-  messages: MessageWithUser[];
+  activeDM: ExtendedDirectMessage | null;
+  activeChat: Channel | ExtendedDirectMessage | null;
+  messages: ExtendedMessage[];
   workspaces: Workspace[];
   channels: Channel[];
-  directMessages: DirectMessage[];
+  directMessages: ExtendedDirectMessage[];
   isLoading: boolean;
   isLoadingMessages: boolean;
   isConnected: boolean;
   error: Error | null;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setActiveChannel: (channel: Channel | null) => void;
-  setActiveDM: (dm: DirectMessage | null) => void;
+  setActiveDM: (dm: ExtendedDirectMessage | null) => void;
   sendMessage: (content: string) => Promise<void>;
   createChannel: (name: string, description?: string) => Promise<void>;
   createDirectMessage: (userId: number) => Promise<void>;
@@ -68,6 +68,7 @@ interface ChatContextType {
     name: string,
     iconText: string
   ) => Promise<Workspace | null>;
+  joinChannel: (channelId: number) => Promise<any>;
   hasNewMessages: boolean;
 }
 
@@ -103,9 +104,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [activeChat, setActiveChat] = useState<Channel | DirectMessage | null>(
-    null
-  );
+  const [activeChat, setActiveChat] = useState<
+    Channel | ExtendedDirectMessage | null
+  >(null);
 
   // Fetch workspaces when user changes
   useEffect(() => {
@@ -218,6 +219,49 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
 
+    // Add handler for channel membership errors
+    const handleChannelMembershipError = async (error: any) => {
+      console.log("ChatContext: Received channel membership error", error);
+
+      // Check if we have an active channel
+      if (currentChannel && user) {
+        try {
+          console.log(
+            `Automatically joining channel ${currentChannel.id} for user ${user.id}`
+          );
+
+          // Join the channel
+          await joinChannel(currentChannel.id);
+
+          toast({
+            title: "Channel Joined",
+            description:
+              "You've been added to the channel. You can now send messages.",
+          });
+
+          // If there was a pending message, retry sending it
+          if (lastAttemptedMessage) {
+            console.log(
+              "Retrying to send last attempted message:",
+              lastAttemptedMessage
+            );
+            // Wait a moment to ensure the join has completed
+            setTimeout(() => {
+              sendMessage(lastAttemptedMessage);
+              setLastAttemptedMessage(null);
+            }, 500);
+          }
+        } catch (joinError) {
+          console.error("Failed to join channel:", joinError);
+          toast({
+            title: "Error",
+            description: "Failed to join channel. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
     const handleMessage = (data: any) => {
       console.log("ChatContext: Message received", data);
       if (data.type === "message" || data.data?.content) {
@@ -252,6 +296,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     const cleanupDisconnect = socket.on("disconnect", handleDisconnect);
     const cleanupAuthSuccess = socket.on("auth_success", handleAuthSuccess);
     const cleanupError = socket.on("error", handleAuthError);
+    const cleanupChannelMembershipError = socket.on(
+      "channel_membership_error",
+      handleChannelMembershipError
+    );
     const cleanupMessage = socket.on("message", handleMessage);
 
     // Connect socket when user is available and setup retry logic
@@ -281,6 +329,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       cleanupDisconnect();
       cleanupAuthSuccess();
       cleanupError();
+      cleanupChannelMembershipError();
       cleanupMessage();
     };
   }, [socket, user, toast, currentChannel, currentDirectMessage]);
@@ -444,13 +493,66 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
     setCurrentWorkspace(workspace);
   };
 
-  const setActiveChannel = (channel: Channel | null) => {
+  const setActiveChannel = async (channel: Channel | null) => {
     setCurrentChannel(channel);
+
+    // Automatically join the channel if it's not null
+    if (channel && user) {
+      try {
+        console.log(`Joining channel ${channel.id} for user ${user.id}`);
+        await joinChannel(channel.id);
+      } catch (error) {
+        console.error("Failed to join channel:", error);
+        // We still set the channel as active even if join fails
+        // The join will be retried when sending a message
+      }
+    }
+  };
+
+  // Add a function to join a channel
+  const joinChannel = async (channelId: number) => {
+    if (!user) {
+      console.error("Cannot join channel: User not authenticated");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/channels/${channelId}/join`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.status === 400) {
+        // Already a member, that's fine
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to join channel: ${response.statusText}`);
+      }
+
+      console.log(`Successfully joined channel ${channelId}`);
+      return await response.json();
+    } catch (error) {
+      console.error("Error joining channel:", error);
+      toast({
+        title: "Error",
+        description: "Failed to join channel. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const setActiveDM = (dm: ExtendedDirectMessage | null) => {
     setCurrentDirectMessage(dm);
   };
+
+  // Update the sendMessage function to store the last attempted message
+  const [lastAttemptedMessage, setLastAttemptedMessage] = useState<
+    string | null
+  >(null);
 
   const sendMessage = async (content: string) => {
     if (!user) {
@@ -475,6 +577,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       });
       return;
     }
+
+    // Save the message content in case we need to retry
+    setLastAttemptedMessage(content);
 
     // Create message data based on current conversation
     const messageData: any = { content };
@@ -772,29 +877,30 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
   return (
     <ChatContext.Provider
       value={{
-        activeWorkspace: currentWorkspace,
         workspaces,
-        activeChannel: currentChannel,
         channels,
-        activeDM: currentDirectMessage,
         directMessages,
+        activeWorkspace: currentWorkspace,
+        activeChannel: currentChannel,
+        activeDM: currentDirectMessage,
         activeChat: currentChannel || currentDirectMessage,
-        messages: messages as MessageWithUser[],
+        messages: messages as ExtendedMessage[],
         isLoadingMessages,
         isConnected,
         isLoading,
         error,
         setActiveWorkspace,
         setActiveChannel,
-        setActiveDM: setActiveDM as (dm: DirectMessage | null) => void,
+        setActiveDM: setActiveDM as (dm: ExtendedDirectMessage | null) => void,
         sendMessage,
         loadMoreMessages,
         createWorkspace,
         createChannel,
-        refreshChannels,
         reconnectSocket,
+        refreshChannels,
         hasNewMessages,
         createDirectMessage,
+        joinChannel,
       }}
     >
       {children}

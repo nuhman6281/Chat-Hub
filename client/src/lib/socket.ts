@@ -216,6 +216,17 @@ export const createSocket = (): Socket => {
           // Handle errors
           if (eventType === "error") {
             console.error("Received socket error:", parsedData);
+
+            // Special handling for channel membership error
+            if (
+              parsedData.message === "You are not a member of this channel" &&
+              eventHandlers["channel_membership_error"]
+            ) {
+              eventHandlers["channel_membership_error"].forEach((handler) =>
+                handler(parsedData)
+              );
+            }
+
             if (eventHandlers["error"]) {
               eventHandlers["error"].forEach((handler) => handler(parsedData));
             }
