@@ -283,6 +283,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Handle call status updates
     const handleCallAccepted = (payload: any) => {
+      console.log('Call accepted event received:', payload);
       toast({
         title: 'Call accepted',
         description: `${payload.by.displayName} accepted your call`
@@ -290,6 +291,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallRejected = (payload: any) => {
+      console.log('Call rejected event received:', payload);
       toast({
         title: 'Call declined',
         description: `${payload.by.displayName} declined your call`
@@ -299,6 +301,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallEnded = (payload: any) => {
+      console.log('Call ended event received:', payload);
       toast({
         title: 'Call ended',
         description: `Call ended by ${payload.endedBy.displayName}`
@@ -308,6 +311,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     const handleCallRinging = (payload: any) => {
+      console.log('Call ringing event received:', payload);
       toast({
         title: 'Ringing',
         description: `Calling ${payload.to.displayName}...`
@@ -316,7 +320,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     const unsubscribeMessage = on('new_message', handleNewMessage);
     const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
-    const unsubscribeCallAccepted = on('call_accepted', handleCallAccepted);
+    const unsubscribeCallAccepted = on('call_answered', handleCallAccepted);
     const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
     const unsubscribeCallEnded = on('call_ended', handleCallEnded);
     const unsubscribeCallRinging = on('call_ringing', handleCallRinging);

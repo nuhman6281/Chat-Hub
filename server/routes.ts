@@ -1181,6 +1181,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { callId, accepted } = req.body;
       const userId = (req.user as any).id;
       
+      console.log('Call answer request:', { callId, accepted, userId });
+      
       if (!callId || accepted === undefined) {
         return res.status(400).json({ message: 'Call ID and accepted status are required' });
       }
@@ -1188,53 +1190,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract caller ID from call ID format: call_callerID_receiverID_timestamp
       const callParts = callId.split('_');
       if (callParts.length < 4) {
+        console.log('Invalid call ID format:', callId);
         return res.status(400).json({ message: 'Invalid call ID format' });
       }
       
       const callerId = parseInt(callParts[1]);
+      const receiverId = parseInt(callParts[2]);
+      console.log('Call participants:', { callerId, receiverId, currentUser: userId });
+      
       const caller = await storage.getUser(callerId);
       const responder = await storage.getUser(userId);
       
       if (!caller || !responder) {
+        console.log('User not found:', { caller: !!caller, responder: !!responder });
         return res.status(404).json({ message: 'User not found' });
       }
       
+      const eventType = accepted ? 'call_answered' : 'call_rejected';
+      const eventPayload = {
+        callId,
+        by: {
+          id: responder.id,
+          username: responder.username,
+          displayName: responder.displayName
+        }
+      };
+      
+      console.log('Sending WebSocket event:', eventType, 'to caller:', callerId);
+      
       // Notify caller of response
       const callerClients = clients.filter(c => c.userId === callerId);
+      console.log('Found caller clients:', callerClients.length);
       callerClients.forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
+          console.log('Sending to caller client');
           client.ws.send(JSON.stringify({
-            type: accepted ? 'call_answered' : 'call_rejected',
-            payload: {
-              callId,
-              by: {
-                id: responder.id,
-                username: responder.username,
-                displayName: responder.displayName
-              }
-            }
+            type: eventType,
+            payload: eventPayload
           }));
+        } else {
+          console.log('Caller client WebSocket not open:', client.ws.readyState);
         }
       });
 
       // Also notify the responder about their own action
       const responderClients = clients.filter(c => c.userId === userId);
+      console.log('Found responder clients:', responderClients.length);
       responderClients.forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
+          console.log('Sending to responder client');
           client.ws.send(JSON.stringify({
-            type: accepted ? 'call_answered' : 'call_rejected',
-            payload: {
-              callId,
-              by: {
-                id: responder.id,
-                username: responder.username,
-                displayName: responder.displayName
-              }
-            }
+            type: eventType,
+            payload: eventPayload
           }));
+        } else {
+          console.log('Responder client WebSocket not open:', client.ws.readyState);
         }
       });
       
+      console.log('Call answer processed successfully');
       res.json({ 
         success: true, 
         message: accepted ? 'Call accepted' : 'Call rejected',
