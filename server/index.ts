@@ -2,15 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
-// Disable all database connections
-delete process.env.DATABASE_URL;
-
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Force use of in-memory storage to avoid database connection issues
-process.env.USE_MEMORY_STORAGE = 'true';
 
 app.use((req, res, next) => {
   const start = Date.now();

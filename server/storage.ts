@@ -717,9 +717,11 @@ export class DatabaseStorage implements IStorage {
   sessionStore: any;
 
   constructor() {
-    // Use memory store instead of PostgreSQL when database is disabled
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
+    // Use PostgreSQL session store for persistence
+    const PostgresSessionStore = connectPg(session);
+    this.sessionStore = new PostgresSessionStore({ 
+      pool, 
+      createTableIfMissing: true 
     });
   }
 
@@ -1030,14 +1032,6 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Force use of in-memory storage for stability
-export const storage = new MemStorage();
-console.log('Using MemStorage for complete in-memory operation');
-
-// Completely disable DatabaseStorage to prevent any database connections
-export class DisabledDatabaseStorage {
-  sessionStore = null;
-  constructor() {
-    throw new Error('Database storage is disabled - using MemStorage only');
-  }
-}
+// Use database storage for persistence
+export const storage = new DatabaseStorage();
+console.log('Using DatabaseStorage with PostgreSQL persistence');
