@@ -1,0 +1,59 @@
+client:495 [vite] connecting...
+client:536 WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/?token=q9ujW22eDI33' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=q9ujW22eDI33' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+setupWebSocket @ client:536
+fallback @ client:509
+(anonymous) @ client:555
+hook.js:608 Module "events" has been externalized for browser compatibility. Cannot access "events.EventEmitter" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+overrideMethod @ hook.js:608
+get @ simple-peer.js?v=d44e03f1:2348
+node_modules/readable-stream/lib/_stream_readable.js @ simple-peer.js?v=d44e03f1:3999
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/readable-browser.js @ simple-peer.js?v=d44e03f1:4931
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/simple-peer/index.js @ simple-peer.js?v=d44e03f1:5003
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+(anonymous) @ simple-peer.js?v=d44e03f1:5845
+hook.js:608 Module "events" has been externalized for browser compatibility. Cannot access "events.EventEmitter" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+overrideMethod @ hook.js:608
+get @ simple-peer.js?v=d44e03f1:2348
+node_modules/readable-stream/lib/internal/streams/stream-browser.js @ simple-peer.js?v=d44e03f1:2358
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/lib/_stream_readable.js @ simple-peer.js?v=d44e03f1:4003
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/readable-browser.js @ simple-peer.js?v=d44e03f1:4931
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/simple-peer/index.js @ simple-peer.js?v=d44e03f1:5003
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+(anonymous) @ simple-peer.js?v=d44e03f1:5845
+hook.js:608 Module "util" has been externalized for browser compatibility. Cannot access "util.debuglog" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+overrideMethod @ hook.js:608
+get @ simple-peer.js?v=d44e03f1:2368
+node_modules/readable-stream/lib/_stream_readable.js @ simple-peer.js?v=d44e03f1:4015
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/readable-browser.js @ simple-peer.js?v=d44e03f1:4931
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/simple-peer/index.js @ simple-peer.js?v=d44e03f1:5003
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+(anonymous) @ simple-peer.js?v=d44e03f1:5845
+hook.js:608 Module "util" has been externalized for browser compatibility. Cannot access "util.inspect" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+overrideMethod @ hook.js:608
+get @ simple-peer.js?v=d44e03f1:2368
+node_modules/readable-stream/lib/internal/streams/buffer_list.js @ simple-peer.js?v=d44e03f1:2446
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/lib/_stream_readable.js @ simple-peer.js?v=d44e03f1:4021
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/readable-stream/readable-browser.js @ simple-peer.js?v=d44e03f1:4931
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+node_modules/simple-peer/index.js @ simple-peer.js?v=d44e03f1:5003
+__require @ chunk-WOOG5QLI.js?v=d44e03f1:12
+(anonymous) @ simple-peer.js?v=d44e03f1:5845
+index.iife.js:1347 content script loaded
+index.iife.js:1 initial theme: light
+socket.ts:41 WebSocket connection established
+socket.ts:41 WebSocket connection established

@@ -10,7 +10,7 @@ import { MessageSquare, Users, Bookmark, Settings, Phone, Video, AlertCircle, Lo
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { connectWebSocket, parseWSMessage } from "@/lib/socket";
+import { useSocket } from "@/lib/socket";
 
 // Sample messages for demo
 const SAMPLE_MESSAGES = [
