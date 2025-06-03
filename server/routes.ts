@@ -716,7 +716,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user2Id: otherUserId
       });
       
-      res.status(201).json(directMessage);
+      // Get the complete DM with user information for the response
+      const completeDm = await storage.getDirectMessageByUserIds(userId, otherUserId);
+      
+      res.status(201).json(completeDm);
     } catch (error) {
       res.status(500).json({ message: 'Failed to create direct message conversation' });
     }
