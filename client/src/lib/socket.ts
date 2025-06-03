@@ -48,10 +48,18 @@ export function useSocket() {
             const socketEvent: SocketEvent = JSON.parse(event.data);
             const { type, payload } = socketEvent;
             
+            console.log('WebSocket message received:', { type, payload });
+            
             // Call all registered handlers for this event type
             const handlers = handlersRef.current.get(type);
             if (handlers) {
-              handlers.forEach(handler => handler(payload));
+              console.log(`Found ${handlers.size} handlers for event type: ${type}`);
+              handlers.forEach((handler, index) => {
+                console.log(`Calling handler ${index + 1} for ${type}`);
+                handler(payload);
+              });
+            } else {
+              console.log(`No handlers found for event type: ${type}`);
             }
           } catch (error) {
             console.error('Error handling WebSocket message:', error);
