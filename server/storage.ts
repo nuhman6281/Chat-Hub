@@ -62,6 +62,16 @@ export interface IStorage {
   // Search operations
   searchUsers(searchTerm: string): Promise<User[]>;
 
+  // Message reactions
+  addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction>;
+  getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]>;
+  removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean>;
+
+  // File uploads
+  createFileUpload(file: InsertFileUpload): Promise<FileUpload>;
+  getFileUpload(id: number): Promise<FileUpload | undefined>;
+  getMessageById(id: number): Promise<MessageWithUser | undefined>;
+
   // Session store
   sessionStore: any;
 }
@@ -755,6 +765,66 @@ export class DatabaseStorage implements IStorage {
           sql`${users.displayName} ILIKE ${`%${searchTerm}%`}`
         )
       );
+  }
+
+  async addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction> {
+    const [newReaction] = await db
+      .insert(messageReactions)
+      .values(reaction)
+      .returning();
+    return newReaction;
+  }
+
+  async getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]> {
+    const result = await db
+      .select({ reaction: messageReactions, user: users })
+      .from(messageReactions)
+      .innerJoin(users, eq(messageReactions.userId, users.id))
+      .where(eq(messageReactions.messageId, messageId));
+    return result.map(r => ({ ...r.reaction, user: r.user }));
+  }
+
+  async removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean> {
+    const result = await db
+      .delete(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.messageId, messageId),
+          eq(messageReactions.userId, userId),
+          eq(messageReactions.emoji, emoji)
+        )
+      )
+      .returning();
+    return result.length > 0;
+  }
+
+  async createFileUpload(file: InsertFileUpload): Promise<FileUpload> {
+    const [newFile] = await db
+      .insert(fileUploads)
+      .values(file)
+      .returning();
+    return newFile;
+  }
+
+  async getFileUpload(id: number): Promise<FileUpload | undefined> {
+    const [file] = await db
+      .select()
+      .from(fileUploads)
+      .where(eq(fileUploads.id, id));
+    return file || undefined;
+  }
+
+  async getMessageById(id: number): Promise<MessageWithUser | undefined> {
+    const result = await db
+      .select({ message: messages, user: users })
+      .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(eq(messages.id, id));
+    
+    if (result.length === 0) return undefined;
+    
+    const { message, user } = result[0];
+    return { ...message, user };
   }
 }
 
