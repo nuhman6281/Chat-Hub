@@ -156,30 +156,38 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const headers: HeadersInit = {};
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-      
-      const res = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          ...headers,
+      try {
+        const headers: HeadersInit = {
           'Content-Type': 'application/json'
+        };
+        
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
         }
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Logout failed');
+        
+        const res = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers,
+          credentials: 'include' // Include cookies for session-based auth
+        });
+        
+        // Even if the server responds with an error, we should still log out locally
+        if (!res.ok) {
+          console.warn('Server logout failed, but proceeding with local logout');
+        }
+        
+        return res.ok ? await res.json() : { success: true };
+      } catch (error) {
+        console.warn('Logout request failed, but proceeding with local logout:', error);
+        return { success: true };
       }
-      return await res.json();
     },
     onSuccess: () => {
-      // Clear token and update query cache
+      // Always clear local session data regardless of server response
       localStorage.removeItem('authToken');
       setAuthToken(null);
       queryClient.setQueryData(['/api/auth/user'], null);
+      queryClient.clear(); // Clear all cached data
       
       toast({
         title: 'Logged out',
@@ -187,10 +195,16 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
       });
     },
     onError: (error: Error) => {
+      // Even on error, clear local session
+      localStorage.removeItem('authToken');
+      setAuthToken(null);
+      queryClient.setQueryData(['/api/auth/user'], null);
+      queryClient.clear();
+      
       toast({
-        title: 'Logout failed',
-        description: error.message,
-        variant: 'destructive',
+        title: 'Logged out',
+        description: 'You have been logged out (with warnings).',
+        variant: 'default',
       });
     },
   });
