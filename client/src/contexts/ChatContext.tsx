@@ -44,6 +44,20 @@ export interface DirectMessage {
   lastMessage?: Message;
 }
 
+export interface WorkspaceMember {
+  id: number;
+  userId: number;
+  workspaceId: number;
+  role: string;
+  user: {
+    id: number;
+    username: string;
+    displayName: string;
+    status: string;
+    avatarUrl?: string | null;
+  };
+}
+
 export interface Workspace {
   id: number;
   name: string;
@@ -72,6 +86,7 @@ interface ChatContextType {
   channels: Channel[];
   activeDM: DirectMessage | null;
   directMessages: DirectMessage[];
+  workspaceMembers: WorkspaceMember[];
   messages: Message[];
   isLoadingMessages: boolean;
   isConnected: boolean;
@@ -87,6 +102,7 @@ interface ChatContextType {
   sendMessage: (content: string, channelId?: number, directMessageId?: number, messageType?: string, mediaFile?: File) => Promise<boolean>;
   loadMoreMessages: () => Promise<boolean>;
   refreshChannels: () => Promise<void>;
+  refreshWorkspaceMembers: () => Promise<void>;
   createChannel: (name: string, isPrivate?: boolean, description?: string) => Promise<Channel | null>;
   createWorkspace: (name: string, description?: string) => Promise<Workspace | null>;
   startDirectMessage: (userId: number) => Promise<DirectMessage | null>;
@@ -112,6 +128,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeDM, setActiveDM] = useState<DirectMessage | null>(null);
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   
@@ -145,13 +162,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
   
-  // Fetch channels when active workspace changes
+  // Fetch channels and workspace members when active workspace changes
   useEffect(() => {
     if (activeWorkspace) {
       fetchChannels(activeWorkspace.id);
+      fetchWorkspaceMembers(activeWorkspace.id);
     } else {
       setChannels([]);
       setActiveChannel(null);
+      setWorkspaceMembers([]);
     }
   }, [activeWorkspace]);
   
@@ -345,6 +364,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to fetch direct messages:', error);
+    }
+  };
+
+  const fetchWorkspaceMembers = async (workspaceId: number) => {
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/members`);
+      if (response.ok) {
+        const data = await response.json();
+        setWorkspaceMembers(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch workspace members:', error);
+    }
+  };
+
+  const refreshWorkspaceMembers = async () => {
+    if (activeWorkspace) {
+      await fetchWorkspaceMembers(activeWorkspace.id);
     }
   };
   
