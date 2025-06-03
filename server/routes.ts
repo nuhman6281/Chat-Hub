@@ -959,35 +959,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/calls/initiate', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const { callType, receiverId, channelId } = req.body;
+      const { callType, targetUserId, receiverId, channelId } = req.body;
+      const actualReceiverId = targetUserId || receiverId;
       
-      if (!['voice', 'video'].includes(callType)) {
-        return res.status(400).json({ message: 'Invalid call type' });
+      if (!['voice', 'video', 'audio'].includes(callType)) {
+        return res.status(400).json({ message: 'Invalid call type. Must be voice, video, or audio' });
       }
       
       // Direct call
-      if (receiverId) {
-        const receiver = await storage.getUser(receiverId);
+      if (actualReceiverId) {
+        const receiver = await storage.getUser(actualReceiverId);
         if (!receiver) {
           return res.status(404).json({ message: 'User not found' });
         }
         
-        // Notify receiver via WebSocket
-        const receiverClients = clients.filter(c => c.userId === receiverId);
+        // Generate unique call ID
+        const callId = `call_${userId}_${actualReceiverId}_${Date.now()}`;
+        
+        // Notify receiver via WebSocket for call ringing
+        const receiverClients = clients.filter(c => c.userId === actualReceiverId);
         const initiator = await storage.getUser(userId);
+        
+        if (receiverClients.length === 0) {
+          return res.status(404).json({ message: 'User is not online' });
+        }
         
         receiverClients.forEach(client => {
           if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(JSON.stringify({
               type: 'incoming_call',
-              callType,
-              from: initiator,
-              callId: `${userId}-${receiverId}-${Date.now()}`
+              payload: {
+                callId,
+                callType: callType === 'audio' ? 'voice' : callType, // Normalize audio to voice
+                from: {
+                  id: initiator!.id,
+                  username: initiator!.username,
+                  displayName: initiator!.displayName,
+                  avatarUrl: initiator!.avatarUrl
+                }
+              }
             }));
           }
         });
         
-        res.json({ success: true, message: 'Call initiated' });
+        // Notify caller that call is ringing
+        const callerClients = clients.filter(c => c.userId === userId);
+        callerClients.forEach(client => {
+          if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({
+              type: 'call_ringing',
+              payload: { callId, to: receiver }
+            }));
+          }
+        });
+        
+        res.json({ 
+          success: true, 
+          message: 'Call initiated successfully',
+          callId,
+          receiver: {
+            id: receiver.id,
+            username: receiver.username,
+            displayName: receiver.displayName
+          }
+        });
       }
       
       // Channel call
@@ -1022,25 +1057,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WebRTC Signaling
   app.post('/api/calls/signal', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
-      const { targetUserId, signalData, callId } = req.body;
+      const { targetUserId, signalData, callId, type } = req.body;
       const userId = (req.user as any).id;
       
+      if (!targetUserId || !signalData || !callId) {
+        return res.status(400).json({ message: 'Missing required fields: targetUserId, signalData, callId' });
+      }
+      
       const targetClients = clients.filter(c => c.userId === targetUserId);
+      
+      if (targetClients.length === 0) {
+        return res.status(404).json({ message: 'Target user not connected' });
+      }
+      
       targetClients.forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
           client.ws.send(JSON.stringify({
             type: 'webrtc_signal',
-            from: userId,
-            signalData,
-            callId
+            payload: {
+              from: userId,
+              signalData,
+              callId,
+              signalType: type || 'offer'
+            }
           }));
         }
       });
       
-      res.json({ success: true });
+      res.json({ success: true, message: 'Signal sent successfully' });
     } catch (error) {
       console.error('Signaling error:', error);
       res.status(500).json({ message: 'Failed to send signal' });
+    }
+  });
+
+  // Call answer endpoint
+  app.post('/api/calls/answer', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { callId, accepted } = req.body;
+      const userId = (req.user as any).id;
+      
+      if (!callId || accepted === undefined) {
+        return res.status(400).json({ message: 'Call ID and accepted status are required' });
+      }
+      
+      // Extract caller ID from call ID format: call_callerID_receiverID_timestamp
+      const callParts = callId.split('_');
+      if (callParts.length < 4) {
+        return res.status(400).json({ message: 'Invalid call ID format' });
+      }
+      
+      const callerId = parseInt(callParts[1]);
+      const caller = await storage.getUser(callerId);
+      const responder = await storage.getUser(userId);
+      
+      if (!caller || !responder) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Notify caller of response
+      const callerClients = clients.filter(c => c.userId === callerId);
+      callerClients.forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({
+            type: accepted ? 'call_accepted' : 'call_rejected',
+            payload: {
+              callId,
+              by: {
+                id: responder.id,
+                username: responder.username,
+                displayName: responder.displayName
+              }
+            }
+          }));
+        }
+      });
+      
+      res.json({ 
+        success: true, 
+        message: accepted ? 'Call accepted' : 'Call rejected',
+        callId 
+      });
+    } catch (error) {
+      console.error('Call answer error:', error);
+      res.status(500).json({ message: 'Failed to respond to call' });
+    }
+  });
+
+  // Call hangup endpoint
+  app.post('/api/calls/hangup', ensureAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { callId } = req.body;
+      const userId = (req.user as any).id;
+      
+      if (!callId) {
+        return res.status(400).json({ message: 'Call ID is required' });
+      }
+      
+      // Extract caller and receiver IDs from call ID
+      const callParts = callId.split('_');
+      if (callParts.length < 4) {
+        return res.status(400).json({ message: 'Invalid call ID format' });
+      }
+      
+      const callerId = parseInt(callParts[1]);
+      const receiverId = parseInt(callParts[2]);
+      const otherUserId = userId === callerId ? receiverId : callerId;
+      
+      const hangupUser = await storage.getUser(userId);
+      
+      // Notify other participant
+      const otherClients = clients.filter(c => c.userId === otherUserId);
+      otherClients.forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+          client.ws.send(JSON.stringify({
+            type: 'call_ended',
+            payload: {
+              callId,
+              endedBy: {
+                id: hangupUser!.id,
+                username: hangupUser!.username,
+                displayName: hangupUser!.displayName
+              }
+            }
+          }));
+        }
+      });
+      
+      res.json({ success: true, message: 'Call ended', callId });
+    } catch (error) {
+      console.error('Call hangup error:', error);
+      res.status(500).json({ message: 'Failed to end call' });
     }
   });
 

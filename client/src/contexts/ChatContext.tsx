@@ -52,6 +52,18 @@ export interface Workspace {
   iconUrl?: string;
 }
 
+export interface CallData {
+  callId: string;
+  callType: 'voice' | 'video';
+  isIncoming: boolean;
+  user: {
+    id: number;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+  };
+}
+
 interface ChatContextType {
   // State
   activeWorkspace: Workspace | null;
@@ -63,6 +75,10 @@ interface ChatContextType {
   messages: Message[];
   isLoadingMessages: boolean;
   isConnected: boolean;
+  
+  // Call state
+  currentCall: CallData | null;
+  isCallModalOpen: boolean;
 
   // Actions
   setActiveWorkspace: (workspace: Workspace | null) => void;
@@ -74,7 +90,12 @@ interface ChatContextType {
   createChannel: (name: string, isPrivate?: boolean, description?: string) => Promise<Channel | null>;
   createWorkspace: (name: string, description?: string) => Promise<Workspace | null>;
   startDirectMessage: (userId: number) => Promise<DirectMessage | null>;
-  startCall: (type: 'audio' | 'video') => Promise<void>;
+  
+  // Call actions
+  initiateCall: (targetUserId: number, callType: 'audio' | 'video') => Promise<void>;
+  answerCall: (accepted: boolean) => Promise<void>;
+  hangupCall: () => Promise<void>;
+  setIsCallModalOpen: (open: boolean) => void;
 }
 
 export const ChatContext = createContext<ChatContextType | null>(null);
@@ -93,6 +114,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  
+  // Call state
+  const [currentCall, setCurrentCall] = useState<CallData | null>(null);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   
   // Initialize encryption and fetch workspaces when user changes
   useEffect(() => {
