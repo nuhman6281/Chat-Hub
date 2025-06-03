@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log(`WebSocket message received:`, data.type);
+        console.log(`WebSocket message received:`, data.type, data);
 
         if (data.type === 'auth') {
           // Authenticate the WebSocket connection
@@ -99,7 +99,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else if (data.type === 'message' && userId) {
           // Handle new chat message
+          console.log(`Processing message from user ${userId}:`, data);
+          
           if (!data.content || data.content.trim() === '') {
+            console.log('Empty message content detected');
             ws.send(JSON.stringify({ 
               type: 'error', 
               message: 'Message content cannot be empty'
@@ -124,6 +127,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               channelId: data.channelId,
               directMessageId: undefined
             });
+
+            console.log('Message created successfully:', message);
 
             // Broadcast to all clients in the channel
             broadcastToChannel(data.channelId, {

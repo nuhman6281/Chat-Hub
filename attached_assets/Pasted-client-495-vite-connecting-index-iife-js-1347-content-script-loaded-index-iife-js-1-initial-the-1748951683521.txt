@@ -1,0 +1,92 @@
+client:495 [vite] connecting...
+index.iife.js:1347 content script loaded
+index.iife.js:1 initial theme: light
+client:536 WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/?token=xsQ1VUEzTu4R' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=xsQ1VUEzTu4R' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+setupWebSocket @ client:536
+fallback @ client:509
+(anonymous) @ client:555
+socket.ts:41 WebSocket connection established
+[Violation] Forced reflow while executing JavaScript took <N>ms
+[Violation] Forced reflow while executing JavaScript took <N>ms
+[Violation] Forced reflow while executing JavaScript took <N>ms
+[Violation] Forced reflow while executing JavaScript took <N>ms
+[Violation] Forced reflow while executing JavaScript took <N>ms
+[Violation] Forced reflow while executing JavaScript took <N>ms
+602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/:1 Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using the inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden.
+Element with focus: <textarea.flex w-full rounded-md border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[40px] max-h-[120px] resize-none border-0 shadow-none focus-visible:ring-0>
+Ancestor with aria-hidden: <div#root> <div id=​"root" data-aria-hidden=​"true" aria-hidden=​"true">​…​</div>​
+ChatContext.tsx:496 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/calls/initiate 400 (Bad Request)
+startCall @ ChatContext.tsx:496
+onStartCall @ Home.tsx:599
+onClick @ EnhancedMessageInput.tsx:309
+overrideProps.<computed> @ chunk-LXTJ4TFU.js?v=8107ae10:115
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-WERSD76P.js?v=8107ae10:3736
+executeDispatch @ chunk-WERSD76P.js?v=8107ae10:7014
+processDispatchQueueItemsInOrder @ chunk-WERSD76P.js?v=8107ae10:7034
+processDispatchQueue @ chunk-WERSD76P.js?v=8107ae10:7043
+dispatchEventsForPlugins @ chunk-WERSD76P.js?v=8107ae10:7051
+(anonymous) @ chunk-WERSD76P.js?v=8107ae10:7174
+batchedUpdates$1 @ chunk-WERSD76P.js?v=8107ae10:18913
+batchedUpdates @ chunk-WERSD76P.js?v=8107ae10:3579
+dispatchEventForPluginEventSystem @ chunk-WERSD76P.js?v=8107ae10:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-WERSD76P.js?v=8107ae10:5478
+dispatchEvent @ chunk-WERSD76P.js?v=8107ae10:5472
+dispatchDiscreteEvent @ chunk-WERSD76P.js?v=8107ae10:5449
+ChatContext.tsx:496 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/calls/initiate 400 (Bad Request)
+startCall @ ChatContext.tsx:496
+onStartCall @ Home.tsx:599
+onClick @ EnhancedMessageInput.tsx:323
+overrideProps.<computed> @ chunk-LXTJ4TFU.js?v=8107ae10:115
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-WERSD76P.js?v=8107ae10:3736
+executeDispatch @ chunk-WERSD76P.js?v=8107ae10:7014
+processDispatchQueueItemsInOrder @ chunk-WERSD76P.js?v=8107ae10:7034
+processDispatchQueue @ chunk-WERSD76P.js?v=8107ae10:7043
+dispatchEventsForPlugins @ chunk-WERSD76P.js?v=8107ae10:7051
+(anonymous) @ chunk-WERSD76P.js?v=8107ae10:7174
+batchedUpdates$1 @ chunk-WERSD76P.js?v=8107ae10:18913
+batchedUpdates @ chunk-WERSD76P.js?v=8107ae10:3579
+dispatchEventForPluginEventSystem @ chunk-WERSD76P.js?v=8107ae10:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-WERSD76P.js?v=8107ae10:5478
+dispatchEvent @ chunk-WERSD76P.js?v=8107ae10:5472
+dispatchDiscreteEvent @ chunk-WERSD76P.js?v=8107ae10:5449
+ChatContext.tsx:496 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/calls/initiate 400 (Bad Request)
+startCall @ ChatContext.tsx:496
+onStartCall @ Home.tsx:599
+onClick @ EnhancedMessageInput.tsx:309
+overrideProps.<computed> @ chunk-LXTJ4TFU.js?v=8107ae10:115
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-WERSD76P.js?v=8107ae10:3736
+executeDispatch @ chunk-WERSD76P.js?v=8107ae10:7014
+processDispatchQueueItemsInOrder @ chunk-WERSD76P.js?v=8107ae10:7034
+processDispatchQueue @ chunk-WERSD76P.js?v=8107ae10:7043
+dispatchEventsForPlugins @ chunk-WERSD76P.js?v=8107ae10:7051
+(anonymous) @ chunk-WERSD76P.js?v=8107ae10:7174
+batchedUpdates$1 @ chunk-WERSD76P.js?v=8107ae10:18913
+batchedUpdates @ chunk-WERSD76P.js?v=8107ae10:3579
+dispatchEventForPluginEventSystem @ chunk-WERSD76P.js?v=8107ae10:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-WERSD76P.js?v=8107ae10:5478
+dispatchEvent @ chunk-WERSD76P.js?v=8107ae10:5472
+dispatchDiscreteEvent @ chunk-WERSD76P.js?v=8107ae10:5449
