@@ -1,0 +1,109 @@
+auth-page.tsx:42 Warning: Cannot update a component (`Switch`) while rendering a different component (`AuthPage`). To locate the bad setState() call inside `AuthPage`, follow the stack trace as described in https://reactjs.org/link/setstate-in-render
+    at AuthPage (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/pages/auth-page.tsx:45:37)
+    at Route (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=8107ae10:323:16)
+    at Switch (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=8107ae10:379:17)
+    at Suspense
+    at Router
+    at Provider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-VJRUVGTI.js?v=8107ae10:38:15)
+    at TooltipProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=8107ae10:60:5)
+    at CallProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/CallContext.tsx:31:32)
+    at ChatProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/ChatContext.tsx:23:32)
+    at AuthProviderInner (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/AuthWrapper.tsx:22:30)
+    at AuthProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/AuthWrapper.tsx:187:32)
+    at QueryClientProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=8107ae10:2805:3)
+    at App
+    at ThemeProvider (https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/src/contexts/ThemeContext.tsx?v=GZZ0Quqi4dwSS4MTqB3RM:24:33)
+printWarning @ chunk-WERSD76P.js?v=8107ae10:521
+error @ chunk-WERSD76P.js?v=8107ae10:505
+warnAboutRenderPhaseUpdatesInDEV @ chunk-WERSD76P.js?v=8107ae10:19793
+scheduleUpdateOnFiber @ chunk-WERSD76P.js?v=8107ae10:18546
+forceStoreRerender @ chunk-WERSD76P.js?v=8107ae10:11999
+handleStoreChange @ chunk-WERSD76P.js?v=8107ae10:11981
+history.<computed> @ wouter.js?v=8107ae10:224
+navigate @ wouter.js?v=8107ae10:214
+(anonymous) @ wouter.js?v=8107ae10:265
+(anonymous) @ wouter.js?v=8107ae10:178
+AuthPage @ auth-page.tsx:42
+renderWithHooks @ chunk-WERSD76P.js?v=8107ae10:11548
+updateFunctionComponent @ chunk-WERSD76P.js?v=8107ae10:14582
+beginWork @ chunk-WERSD76P.js?v=8107ae10:15924
+beginWork$1 @ chunk-WERSD76P.js?v=8107ae10:19753
+performUnitOfWork @ chunk-WERSD76P.js?v=8107ae10:19198
+workLoopSync @ chunk-WERSD76P.js?v=8107ae10:19137
+renderRootSync @ chunk-WERSD76P.js?v=8107ae10:19116
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=8107ae10:18678
+workLoop @ chunk-WERSD76P.js?v=8107ae10:197
+flushWork @ chunk-WERSD76P.js?v=8107ae10:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=8107ae10:384
+chunk-WERSD76P.js?v=8107ae10:11595 Uncaught Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
+    at renderWithHooks (chunk-WERSD76P.js?v=8107ae10:11595:19)
+    at updateFunctionComponent (chunk-WERSD76P.js?v=8107ae10:14582:28)
+    at beginWork (chunk-WERSD76P.js?v=8107ae10:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-WERSD76P.js?v=8107ae10:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-WERSD76P.js?v=8107ae10:3699:24)
+    at invokeGuardedCallback (chunk-WERSD76P.js?v=8107ae10:3733:39)
+    at beginWork$1 (chunk-WERSD76P.js?v=8107ae10:19765:15)
+    at performUnitOfWork (chunk-WERSD76P.js?v=8107ae10:19198:20)
+    at workLoopSync (chunk-WERSD76P.js?v=8107ae10:19137:13)
+    at renderRootSync (chunk-WERSD76P.js?v=8107ae10:19116:15)
+renderWithHooks @ chunk-WERSD76P.js?v=8107ae10:11595
+updateFunctionComponent @ chunk-WERSD76P.js?v=8107ae10:14582
+beginWork @ chunk-WERSD76P.js?v=8107ae10:15924
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+beginWork$1 @ chunk-WERSD76P.js?v=8107ae10:19765
+performUnitOfWork @ chunk-WERSD76P.js?v=8107ae10:19198
+workLoopSync @ chunk-WERSD76P.js?v=8107ae10:19137
+renderRootSync @ chunk-WERSD76P.js?v=8107ae10:19116
+performConcurrentWorkOnRoot @ chunk-WERSD76P.js?v=8107ae10:18678
+workLoop @ chunk-WERSD76P.js?v=8107ae10:197
+flushWork @ chunk-WERSD76P.js?v=8107ae10:176
+performWorkUntilDeadline @ chunk-WERSD76P.js?v=8107ae10:384
+602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) <input data-replit-metadata=​"client/​src/​pages/​auth-page.tsx:​132:​28" data-component-name=​"Input" type=​"password" class=​"flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:​border-0 file:​bg-transparent file:​text-sm file:​font-medium file:​text-foreground placeholder:​text-muted-foreground focus-visible:​outline-none focus-visible:​ring-2 focus-visible:​ring-ring focus-visible:​ring-offset-2 disabled:​cursor-not-allowed disabled:​opacity-50 md:​text-sm" placeholder=​"Enter your password" name=​"password" id=​":​rd:​-form-item" aria-describedby=​":​rd:​-form-item-description" aria-invalid=​"false" value>​flex
+ChatContext.tsx:413 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/workspaces 400 (Bad Request)
+createWorkspace @ ChatContext.tsx:413
+onCreateWorkspace @ Home.tsx:120
+(anonymous) @ chunk-CXJMC5RA.js?v=8107ae10:1465
+await in (anonymous)
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-WERSD76P.js?v=8107ae10:3736
+executeDispatch @ chunk-WERSD76P.js?v=8107ae10:7014
+processDispatchQueueItemsInOrder @ chunk-WERSD76P.js?v=8107ae10:7034
+processDispatchQueue @ chunk-WERSD76P.js?v=8107ae10:7043
+dispatchEventsForPlugins @ chunk-WERSD76P.js?v=8107ae10:7051
+(anonymous) @ chunk-WERSD76P.js?v=8107ae10:7174
+batchedUpdates$1 @ chunk-WERSD76P.js?v=8107ae10:18913
+batchedUpdates @ chunk-WERSD76P.js?v=8107ae10:3579
+dispatchEventForPluginEventSystem @ chunk-WERSD76P.js?v=8107ae10:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-WERSD76P.js?v=8107ae10:5478
+dispatchEvent @ chunk-WERSD76P.js?v=8107ae10:5472
+dispatchDiscreteEvent @ chunk-WERSD76P.js?v=8107ae10:5449
+ChatContext.tsx:413 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/workspaces 400 (Bad Request)
+createWorkspace @ ChatContext.tsx:413
+onCreateWorkspace @ Home.tsx:120
+(anonymous) @ chunk-CXJMC5RA.js?v=8107ae10:1465
+await in (anonymous)
+callCallback2 @ chunk-WERSD76P.js?v=8107ae10:3674
+invokeGuardedCallbackDev @ chunk-WERSD76P.js?v=8107ae10:3699
+invokeGuardedCallback @ chunk-WERSD76P.js?v=8107ae10:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-WERSD76P.js?v=8107ae10:3736
+executeDispatch @ chunk-WERSD76P.js?v=8107ae10:7014
+processDispatchQueueItemsInOrder @ chunk-WERSD76P.js?v=8107ae10:7034
+processDispatchQueue @ chunk-WERSD76P.js?v=8107ae10:7043
+dispatchEventsForPlugins @ chunk-WERSD76P.js?v=8107ae10:7051
+(anonymous) @ chunk-WERSD76P.js?v=8107ae10:7174
+batchedUpdates$1 @ chunk-WERSD76P.js?v=8107ae10:18913
+batchedUpdates @ chunk-WERSD76P.js?v=8107ae10:3579
+dispatchEventForPluginEventSystem @ chunk-WERSD76P.js?v=8107ae10:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-WERSD76P.js?v=8107ae10:5478
+dispatchEvent @ chunk-WERSD76P.js?v=8107ae10:5472
+dispatchDiscreteEvent @ chunk-WERSD76P.js?v=8107ae10:5449

@@ -54,7 +54,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (data.type === 'auth') {
           // Authenticate the WebSocket connection
-          if (!data.userId) {
+          const userId = data.payload?.userId || data.userId;
+          if (!userId) {
             ws.send(JSON.stringify({ 
               type: 'error', 
               message: 'User ID is required for authentication'
@@ -62,7 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          const user = await storage.getUser(data.userId);
+          const user = await storage.getUser(userId);
           if (user) {
             userId = user.id;
             
