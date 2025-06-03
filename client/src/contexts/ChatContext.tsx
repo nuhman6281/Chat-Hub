@@ -167,12 +167,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   
   // Fetch messages when active channel or DM changes
   useEffect(() => {
-    if (activeChannel) {
+    if (activeChannel && !activeDM) {
       fetchMessages('channel', activeChannel.id);
-      setActiveDM(null);
-    } else if (activeDM) {
+    } else if (activeDM && !activeChannel) {
       fetchMessages('dm', activeDM.id);
-      setActiveChannel(null);
     } else {
       setMessages([]);
     }

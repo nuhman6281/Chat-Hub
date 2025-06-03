@@ -356,7 +356,10 @@ export default function Home() {
                         key={channel.id}
                         variant={activeChannel?.id === channel.id ? 'secondary' : 'ghost'}
                         className="w-full justify-start h-8 px-2"
-                        onClick={() => setActiveChannel(channel)}
+                        onClick={() => {
+                          setActiveChannel(channel);
+                          setActiveDM(null);
+                        }}
                       >
                         <Hash className="mr-2 h-4 w-4 text-muted-foreground" />
                         <span className="truncate text-sm">{channel.name}</span>
@@ -378,7 +381,10 @@ export default function Home() {
                         key={dm.id}
                         variant={activeDM?.id === dm.id ? 'secondary' : 'ghost'}
                         className="w-full justify-start h-8 px-2"
-                        onClick={() => setActiveDM(dm)}
+                        onClick={() => {
+                          setActiveDM(dm);
+                          setActiveChannel(null);
+                        }}
                       >
                         <User className="mr-2 h-4 w-4 text-muted-foreground" />
                         <span className="truncate text-sm">{dm.otherUser.displayName}</span>
