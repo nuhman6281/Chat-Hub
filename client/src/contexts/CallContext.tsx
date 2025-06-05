@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useRef, useEffec
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/use-websocket';
+import { WebRTCService } from '@/lib/webrtc-service';
 
 export type CallType = 'audio' | 'video';
 
@@ -43,21 +44,13 @@ interface CallContextType {
   localVideoEnabled: boolean;
 }
 
-const CallContext = createContext<CallContextType | undefined>(undefined);
-
-export function useCall() {
-  const context = useContext(CallContext);
-  if (!context) {
-    throw new Error('useCall must be used within a CallProvider');
-  }
-  return context;
-}
+const CallContext = createContext<CallContextType | null>(null);
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { isConnected, on, send } = useWebSocket(user?.id);
-  
+  const { sendMessage, isConnected } = useWebSocket();
+
   // Call state
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiating, setIsInitiating] = useState(false);
@@ -65,6 +58,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  
+  // UI state
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [showIncomingCall, setShowIncomingCall] = useState(false);
@@ -75,173 +70,183 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [localAudioEnabled, setLocalAudioEnabled] = useState(true);
   const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
+  const [incomingCallOffer, setIncomingCallOffer] = useState<any>(null);
   
   // WebRTC and audio management
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const webrtcService = useRef<WebRTCService>(new WebRTCService());
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize ringtone
   useEffect(() => {
     ringtoneRef.current = new Audio('data:audio/wav;base64,UklGRpQEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YXAEAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt');
-    ringtoneRef.current.loop = true;
-    ringtoneRef.current.volume = 0.5;
-  }, []);
-
-  // WebSocket event handlers for calls
-  useEffect(() => {
-    if (!isConnected || !on) return;
-
-    const handleIncomingCall = (payload: any) => {
-      console.log('CallContext: Incoming call received:', payload);
-      setCurrentCallId(payload.callId);
-      setIncomingCall(true);
-      setCallType(payload.callType);
-      setCallerName(payload.from.displayName);
-      setShowIncomingCall(true);
-      
-      // Play ringtone
-      playRingtone();
-
-      toast({
-        title: 'Incoming call',
-        description: `${payload.from.displayName} is calling you`,
-        duration: 10000
-      });
-    };
-
-    const handleCallAnswered = (payload: any) => {
-      console.log('CallContext: Call answered event received:', payload);
-      stopRingtone();
-      setOutgoingCall(false);
-      setIncomingCall(false);
-      setShowIncomingCall(false);
-      setActiveCall(true);
-      setIsInCall(true);
-      toast({
-        title: 'Call answered',
-        description: 'Call connected'
-      });
-    };
-
-    const handleCallRejected = (payload: any) => {
-      console.log('CallContext: Call rejected event received:', payload);
-      stopRingtone();
-      resetCallState();
-      toast({
-        title: 'Call declined',
-        description: 'The call was declined'
-      });
-    };
-
-    const handleCallEnded = (payload: any) => {
-      console.log('CallContext: Call ended event received:', payload);
-      stopRingtone();
-      resetCallState();
-      toast({
-        title: 'Call ended',
-        description: 'The call has ended'
-      });
-    };
-
-    const handleWebRTCOffer = async (payload: any) => {
-      console.log('CallContext: WebRTC offer received:', payload);
-      
-      // Create peer connection if we don't have one (for incoming calls)
-      if (!peerConnectionRef.current) {
-        console.log('Creating peer connection for incoming call');
-        const peerConnection = createPeerConnection();
-        peerConnectionRef.current = peerConnection;
-        
-        // Add local stream if we have it
-        if (localStream) {
-          console.log('Adding existing local stream to new peer connection');
-          localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-          });
-        } else {
-          console.log('No local stream available for peer connection');
-        }
-      }
-      
-      if (peerConnectionRef.current && payload.offer) {
-        try {
-          await peerConnectionRef.current.setRemoteDescription(payload.offer);
-          const answer = await peerConnectionRef.current.createAnswer();
-          await peerConnectionRef.current.setLocalDescription(answer);
-          
-          send('webrtc_answer', {
-            callId: currentCallId,
-            answer,
-            targetUserId: payload.fromUserId
-          });
-          
-          console.log('WebRTC answer sent');
-        } catch (error) {
-          console.error('Error handling WebRTC offer:', error);
-        }
-      }
-    };
-
-    const handleWebRTCAnswer = async (payload: any) => {
-      console.log('CallContext: WebRTC answer received:', payload);
-      if (peerConnectionRef.current && payload.answer) {
-        try {
-          await peerConnectionRef.current.setRemoteDescription(payload.answer);
-        } catch (error) {
-          console.error('Error handling WebRTC answer:', error);
-        }
-      }
-    };
-
-    const handleWebRTCCandidate = async (payload: any) => {
-      console.log('CallContext: ICE candidate received:', payload);
-      if (peerConnectionRef.current && payload.candidate) {
-        try {
-          await peerConnectionRef.current.addIceCandidate(payload.candidate);
-        } catch (error) {
-          console.error('Error adding ICE candidate:', error);
-        }
-      }
-    };
-
-    console.log('CallContext: Registering WebSocket event handlers');
-    const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
-    const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
-    const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
-    const unsubscribeCallEnded = on('call_ended', handleCallEnded);
-    const unsubscribeWebRTCOffer = on('webrtc_offer', handleWebRTCOffer);
-    const unsubscribeWebRTCAnswer = on('webrtc_answer', handleWebRTCAnswer);
-    const unsubscribeWebRTCCandidate = on('webrtc_candidate', handleWebRTCCandidate);
-
-    return () => {
-      console.log('CallContext: Cleaning up WebSocket event handlers');
-      if (unsubscribeIncomingCall) unsubscribeIncomingCall();
-      if (unsubscribeCallAnswered) unsubscribeCallAnswered();
-      if (unsubscribeCallRejected) unsubscribeCallRejected();
-      if (unsubscribeCallEnded) unsubscribeCallEnded();
-      if (unsubscribeWebRTCOffer) unsubscribeWebRTCOffer();
-      if (unsubscribeWebRTCAnswer) unsubscribeWebRTCAnswer();
-      if (unsubscribeWebRTCCandidate) unsubscribeWebRTCCandidate();
-    };
-  }, [isConnected, on]);
-
-  const playRingtone = () => {
-    console.log('Starting ringtone');
-    stopRingtone(); // Clear any existing ringtone first
     
     if (ringtoneRef.current) {
       ringtoneRef.current.loop = true;
-      ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
+      ringtoneRef.current.volume = 0.5;
+    }
+  }, []);
+
+  // Initialize WebRTC service
+  useEffect(() => {
+    const webrtc = webrtcService.current;
+    
+    // Set up WebRTC callbacks
+    webrtc.onRemoteStream((stream) => {
+      console.log('Remote stream received in CallContext');
+      setRemoteStream(stream);
+    });
+    
+    webrtc.onConnectionState((state) => {
+      console.log('WebRTC connection state:', state);
+      if (state === 'connected') {
+        console.log('WebRTC connection established successfully');
+        toast({
+          title: 'Call connected',
+          description: 'Audio/video transmission active'
+        });
+      } else if (state === 'failed' || state === 'disconnected') {
+        console.log('WebRTC connection failed or disconnected');
+        endCall();
+      }
+    });
+    
+    webrtc.onSignaling((message) => {
+      console.log('WebRTC signaling message:', message.type);
+      
+      if (sendMessage && currentCallId) {
+        if (message.type === 'offer') {
+          sendMessage({
+            type: 'webrtc_offer',
+            payload: {
+              offer: message.data,
+              callId: currentCallId,
+              targetUserId: message.targetUserId
+            }
+          });
+        } else if (message.type === 'answer') {
+          sendMessage({
+            type: 'webrtc_answer',
+            payload: {
+              answer: message.data,
+              callId: currentCallId,
+              targetUserId: message.targetUserId
+            }
+          });
+        } else if (message.type === 'candidate') {
+          sendMessage({
+            type: 'webrtc_candidate',
+            payload: {
+              candidate: message.data,
+              callId: currentCallId,
+              targetUserId: message.targetUserId
+            }
+          });
+        }
+      }
+    });
+    
+    return () => {
+      webrtc.endCall();
+    };
+  }, [sendMessage, currentCallId, toast]);
+
+  // WebSocket event handlers for calls
+  useEffect(() => {
+    if (!isConnected || !sendMessage) return;
+    
+    const handleWebSocketMessage = (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+      console.log('CallContext: WebSocket message received:', data.type);
+      
+      if (data.type === 'incoming_call') {
+        const payload = data.payload;
+        console.log('Incoming call from user:', payload.fromUserId);
+        
+        setCallerName(payload.callerName || payload.from?.displayName || `User ${payload.fromUserId}`);
+        setCallType(payload.callType);
+        setCurrentCallId(payload.callId);
+        setIncomingCallOffer(payload.offer);
+        setIncomingCall(true);
+        setShowIncomingCall(true);
+        
+        // Play ringtone
+        playRingtone();
+        
+        toast({
+          title: 'Incoming call',
+          description: `${payload.callerName || 'Someone'} is calling you`,
+          duration: 10000
+        });
+      }
+      
+      if (data.type === 'call_answered') {
+        const payload = data.payload;
+        console.log('Call answered by user:', payload.fromUserId);
+        
+        stopRingtone();
+        setOutgoingCall(false);
+        setActiveCall(true);
+        
+        // Handle WebRTC answer
+        if (payload.answer) {
+          webrtcService.current.handleAnswer(payload.answer);
+        }
+      }
+      
+      if (data.type === 'call_ended') {
+        console.log('Call ended by remote user');
+        endCall();
+      }
+      
+      if (data.type === 'webrtc_offer') {
+        const payload = data.payload;
+        console.log('WebRTC offer received');
+        setIncomingCallOffer(payload.offer);
+      }
+      
+      if (data.type === 'webrtc_answer') {
+        const payload = data.payload;
+        console.log('WebRTC answer received');
+        
+        if (payload.answer) {
+          webrtcService.current.handleAnswer(payload.answer);
+        }
+      }
+      
+      if (data.type === 'webrtc_candidate') {
+        const payload = data.payload;
+        console.log('WebRTC ICE candidate received');
+        
+        if (payload.candidate) {
+          webrtcService.current.handleIceCandidate(payload.candidate);
+        }
+      }
+    };
+
+    // Add event listener
+    const ws = (sendMessage as any).__ws;
+    if (ws) {
+      ws.addEventListener('message', handleWebSocketMessage);
+      
+      return () => {
+        ws.removeEventListener('message', handleWebSocketMessage);
+      };
+    }
+  }, [isConnected, sendMessage, toast]);
+
+  // Ringtone management
+  const playRingtone = () => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.currentTime = 0;
+      ringtoneRef.current.play().catch(e => console.error('Error playing ringtone:', e));
     }
   };
 
   const stopRingtone = () => {
-    console.log('Stopping ringtone');
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
-      ringtoneRef.current.loop = false;
     }
     
     if (ringtoneIntervalRef.current) {
@@ -250,303 +255,203 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createPeerConnection = () => {
-    const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    };
-
-    const peerConnection = new RTCPeerConnection(config);
-
-    // Handle remote stream
-    peerConnection.ontrack = (event) => {
-      console.log('Received remote stream', event.streams);
-      const [stream] = event.streams;
-      if (stream) {
-        console.log('Setting remote stream with tracks:', stream.getTracks().length);
-        setRemoteStream(stream);
-      }
-    };
-
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('Sending ICE candidate:', event.candidate);
-        send('webrtc_candidate', {
-          callId: currentCallId,
-          candidate: event.candidate,
-          targetUserId: user?.id === 1 ? 2 : 1 // Simple target user logic
-        });
-      }
-    };
-
-    // Handle connection state changes
-    peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state changed to:', peerConnection.connectionState);
-      if (peerConnection.connectionState === 'connected') {
-        console.log('WebRTC connection established');
-        setIsInCall(true);
-      } else if (peerConnection.connectionState === 'disconnected' || 
-                 peerConnection.connectionState === 'failed') {
-        console.log('WebRTC connection failed/disconnected');
-        resetCallState();
-      }
-    };
-
-    // Handle ICE connection state changes
-    peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', peerConnection.iceConnectionState);
-    };
-
-    return peerConnection;
-  };
-
   const resetCallState = () => {
-    console.log('Resetting call state');
-    
-    // Force stop ringtone immediately
-    stopRingtone();
-    
-    // Reset all call states
     setIsInCall(false);
     setIsInitiating(false);
+    setCallType(null);
+    setParticipants([]);
+    setLocalStream(null);
+    setRemoteStream(null);
+    setIsMuted(false);
+    setIsVideoEnabled(true);
+    setShowIncomingCall(false);
     setIncomingCall(false);
     setOutgoingCall(false);
     setActiveCall(false);
-    setShowIncomingCall(false);
-    setCallType(null);
     setCallerName(null);
-    setCurrentCallId(null);
-    setParticipants([]);
-    setIsMuted(false);
-    setIsVideoEnabled(true);
     setLocalAudioEnabled(true);
     setLocalVideoEnabled(true);
-    
-    // Stop local stream
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        console.log('Stopping local track:', track.kind);
-        track.stop();
-      });
-      setLocalStream(null);
-    }
-    
-    // Stop remote stream
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => {
-        console.log('Stopping remote track:', track.kind);
-        track.stop();
-      });
-      setRemoteStream(null);
-    }
-    
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      console.log('Closing peer connection');
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
+    setCurrentCallId(null);
+    setIncomingCallOffer(null);
+    stopRingtone();
   };
 
+  // Call functions
   const initiateCall = async (targetUserId: number, type: CallType) => {
+    if (!user || isInCall) return;
+    
+    console.log(`Initiating ${type} call to user ${targetUserId}`);
+    
     try {
       setIsInitiating(true);
-      setOutgoingCall(true);
       setCallType(type);
+      setOutgoingCall(true);
+      setIsInCall(true);
       
       // Generate call ID
-      const callId = `call_${user?.id}_${targetUserId}_${Date.now()}`;
+      const callId = `call_${user.id}_${targetUserId}_${Date.now()}`;
       setCurrentCallId(callId);
       
-      // Get user media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === 'video'
-      });
+      // Start WebRTC call
+      const offer = await webrtcService.current.startCall(callId, type === 'video');
       
-      setLocalStream(stream);
-      setLocalAudioEnabled(true);
-      setLocalVideoEnabled(type === 'video');
-      
-      // Create peer connection and add local stream
-      const peerConnection = createPeerConnection();
-      peerConnectionRef.current = peerConnection;
-      
-      // Add local stream tracks to peer connection
-      console.log('Adding local tracks to peer connection:', stream.getTracks().length);
-      stream.getTracks().forEach((track, index) => {
-        console.log(`Adding track ${index}: ${track.kind}`);
-        peerConnection.addTrack(track, stream);
-      });
-      
-      // Create offer with proper constraints
-      const offer = await peerConnection.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: type === 'video'
-      });
-      await peerConnection.setLocalDescription(offer);
-      console.log('Created and set local offer');
+      // Get local stream from WebRTC service
+      const stream = webrtcService.current.getLocalStream();
+      if (stream) {
+        setLocalStream(stream);
+        setLocalAudioEnabled(true);
+        setLocalVideoEnabled(type === 'video');
+      }
       
       // Make API call to initiate call
       const response = await fetch('/api/calls/initiate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetUserId,
-          callType: type
+          callType: type,
+          callId,
+          offer
         })
       });
       
-      if (response.ok) {
-        // Send offer via WebSocket
-        send('webrtc_offer', {
-          callId,
-          offer,
-          targetUserId
-        });
-        
-        toast({
-          title: "Call initiated",
-          description: `${type === 'video' ? 'Video' : 'Voice'} call started`,
-        });
-      } else {
+      if (!response.ok) {
         throw new Error('Failed to initiate call');
       }
-    } catch (error) {
-      console.error('Call initiation error:', error);
+      
+      // Play outgoing call tone
+      playRingtone();
+      
       toast({
-        title: "Call failed",
-        description: "Unable to start call. Please check your microphone/camera permissions.",
-        variant: "destructive",
+        title: 'Calling...',
+        description: `Calling user ${targetUserId}`
       });
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      webrtcService.current.endCall();
       resetCallState();
+      toast({
+        title: 'Call failed',
+        description: 'Failed to start the call',
+        variant: 'destructive'
+      });
     } finally {
       setIsInitiating(false);
     }
   };
 
   const answerCall = async () => {
-    if (!incomingCall) return;
+    if (!currentCallId || !incomingCallOffer) return;
+    
+    console.log('Answering call:', currentCallId);
     
     try {
       stopRingtone();
-      
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video'
-      });
-      
-      setLocalStream(stream);
-      setLocalAudioEnabled(true);
-      setLocalVideoEnabled(callType === 'video');
       setActiveCall(true);
       setIncomingCall(false);
       setShowIncomingCall(false);
+      setIsInCall(true);
       
-      // Create peer connection and add local stream
-      const peerConnection = createPeerConnection();
-      peerConnectionRef.current = peerConnection;
+      // Answer the call using WebRTC service
+      const answer = await webrtcService.current.answerCall(
+        currentCallId,
+        incomingCallOffer,
+        callType === 'video'
+      );
       
-      // Add local stream tracks to peer connection
-      console.log('Adding local tracks to peer connection (answer):', stream.getTracks().length);
-      stream.getTracks().forEach((track, index) => {
-        console.log(`Adding track ${index}: ${track.kind}`);
-        peerConnection.addTrack(track, stream);
-      });
+      // Get local stream from WebRTC service
+      const stream = webrtcService.current.getLocalStream();
+      if (stream) {
+        setLocalStream(stream);
+        setLocalAudioEnabled(true);
+        setLocalVideoEnabled(callType === 'video');
+      }
       
       // Call API to accept the call
-      await fetch('/api/calls/answer', {
+      const response = await fetch('/api/calls/answer', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           callId: currentCallId,
-          accepted: true
+          accepted: true,
+          answer
         })
       });
       
-      toast({
-        title: "Call answered",
-        description: `${callType === 'video' ? 'Video' : 'Voice'} call connected`,
-      });
+      if (!response.ok) {
+        throw new Error('Failed to answer call');
+      }
+      
+      console.log('Call answered successfully');
     } catch (error) {
-      console.error('Call answer error:', error);
+      console.error('Error answering call:', error);
+      endCall();
       toast({
-        title: "Failed to answer call",
-        description: "Please check your microphone/camera permissions.",
-        variant: "destructive",
+        title: 'Call failed',
+        description: 'Failed to answer the call',
+        variant: 'destructive'
       });
-      resetCallState();
     }
   };
 
-  const rejectCall = async () => {
-    stopRingtone();
+  const rejectCall = () => {
+    console.log('Rejecting call');
     
-    try {
-      await fetch('/api/calls/hangup', {
+    if (currentCallId) {
+      // Call API to reject the call
+      fetch('/api/calls/hangup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          callId: currentCallId
+          callId: currentCallId,
+          accepted: false
         })
-      });
-    } catch (error) {
-      console.error('Failed to reject call:', error);
+      }).catch(console.error);
     }
     
     resetCallState();
+    
+    toast({
+      title: 'Call rejected',
+      description: 'Call declined'
+    });
   };
 
-  const endCall = async () => {
-    stopRingtone();
+  const endCall = () => {
+    console.log('Ending call');
     
-    try {
-      await fetch('/api/calls/hangup', {
+    if (currentCallId) {
+      // Call API to end the call
+      fetch('/api/calls/hangup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           callId: currentCallId
         })
-      });
-    } catch (error) {
-      console.error('Failed to end call:', error);
+      }).catch(console.error);
     }
     
+    // End WebRTC call
+    webrtcService.current.endCall();
+    
     resetCallState();
+    
+    toast({
+      title: 'Call ended',
+      description: 'The call has ended'
+    });
   };
 
   const toggleMute = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
-        setLocalAudioEnabled(audioTrack.enabled);
-      }
-    }
+    const newMuted = webrtcService.current.toggleAudio();
+    setIsMuted(!newMuted);
+    setLocalAudioEnabled(newMuted);
   };
 
   const toggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
-        setLocalVideoEnabled(videoTrack.enabled);
-      }
-    }
+    const newVideoEnabled = webrtcService.current.toggleVideo();
+    setIsVideoEnabled(newVideoEnabled);
+    setLocalVideoEnabled(newVideoEnabled);
   };
 
   const value: CallContextType = {
@@ -575,7 +480,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     activeCall,
     callerName,
     localAudioEnabled,
-    localVideoEnabled,
+    localVideoEnabled
   };
 
   return (
@@ -583,4 +488,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
       {children}
     </CallContext.Provider>
   );
+}
+
+export function useCall() {
+  const context = useContext(CallContext);
+  if (!context) {
+    throw new Error('useCall must be used within a CallProvider');
+  }
+  return context;
 }
