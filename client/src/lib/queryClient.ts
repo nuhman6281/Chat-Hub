@@ -12,10 +12,13 @@ export async function apiRequest<T = any>(
   options?: RequestInit,
   returnPlainResponse?: boolean
 ): Promise<T> {
+  const authToken = localStorage.getItem('authToken');
+  
   const res = await fetch(url, {
     ...options,
     headers: {
       ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
       ...options?.headers,
     },
     body: options?.body && typeof options.body !== 'string' 

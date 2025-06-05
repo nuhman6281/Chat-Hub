@@ -102,6 +102,9 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
       setAuthToken(data.token);
       queryClient.setQueryData(['/api/auth/user'], data.user);
       
+      // Trigger a refetch to ensure user data is properly loaded
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      
       toast({
         title: 'Welcome back!',
         description: `Logged in as ${data.user.displayName}`,
