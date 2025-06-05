@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, ReactNode, useRef, useEffec
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/use-websocket';
-import { WebRTCService } from '@/lib/webrtc-service';
 
 export type CallType = 'audio' | 'video';
 
@@ -49,7 +48,7 @@ const CallContext = createContext<CallContextType | null>(null);
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { sendMessage, isConnected } = useWebSocket();
+  const { send, isConnected, on } = useWebSocket();
 
   // Call state
   const [isInCall, setIsInCall] = useState(false);
@@ -74,12 +73,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
   
   // WebRTC and audio management
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
-  const webrtcService = useRef<WebRTCService>(new WebRTCService());
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize ringtone
   useEffect(() => {
-    ringtoneRef.current = new Audio('data:audio/wav;base64,UklGRpQEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YXAEAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt');
+    ringtoneRef.current = new Audio('data:audio/wav;base64,UklGRpQEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YXAEAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2+LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt');
     
     if (ringtoneRef.current) {
       ringtoneRef.current.loop = true;
@@ -87,162 +86,146 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Initialize WebRTC service
-  useEffect(() => {
-    const webrtc = webrtcService.current;
+  // Create WebRTC peer connection
+  const createPeerConnection = () => {
+    console.log('Creating new RTCPeerConnection with STUN servers');
     
-    // Set up WebRTC callbacks
-    webrtc.onRemoteStream((stream) => {
-      console.log('Remote stream received in CallContext');
-      setRemoteStream(stream);
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
     });
-    
-    webrtc.onConnectionState((state) => {
-      console.log('WebRTC connection state:', state);
-      if (state === 'connected') {
-        console.log('WebRTC connection established successfully');
+
+    // Handle remote stream
+    pc.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
+      const [stream] = event.streams;
+      if (stream) {
+        console.log('Setting remote stream with tracks:', stream.getTracks().length);
+        setRemoteStream(stream);
+      }
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate && currentCallId) {
+        console.log('Sending ICE candidate');
+        send('webrtc_candidate', {
+          candidate: event.candidate,
+          callId: currentCallId,
+          targetUserId: 0 // Will be set by server
+        });
+      }
+    };
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('WebRTC connection state:', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('WebRTC peer connection established successfully');
         toast({
           title: 'Call connected',
-          description: 'Audio/video transmission active'
+          description: 'Audio transmission active'
         });
-      } else if (state === 'failed' || state === 'disconnected') {
-        console.log('WebRTC connection failed or disconnected');
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.log('WebRTC connection failed');
         endCall();
-      }
-    });
-    
-    webrtc.onSignaling((message) => {
-      console.log('WebRTC signaling message:', message.type);
-      
-      if (sendMessage && currentCallId) {
-        if (message.type === 'offer') {
-          sendMessage({
-            type: 'webrtc_offer',
-            payload: {
-              offer: message.data,
-              callId: currentCallId,
-              targetUserId: message.targetUserId
-            }
-          });
-        } else if (message.type === 'answer') {
-          sendMessage({
-            type: 'webrtc_answer',
-            payload: {
-              answer: message.data,
-              callId: currentCallId,
-              targetUserId: message.targetUserId
-            }
-          });
-        } else if (message.type === 'candidate') {
-          sendMessage({
-            type: 'webrtc_candidate',
-            payload: {
-              candidate: message.data,
-              callId: currentCallId,
-              targetUserId: message.targetUserId
-            }
-          });
-        }
-      }
-    });
-    
-    return () => {
-      webrtc.endCall();
-    };
-  }, [sendMessage, currentCallId, toast]);
-
-  // WebSocket event handlers for calls
-  useEffect(() => {
-    if (!isConnected || !sendMessage) return;
-    
-    const handleWebSocketMessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-      console.log('CallContext: WebSocket message received:', data.type);
-      
-      if (data.type === 'incoming_call') {
-        const payload = data.payload;
-        console.log('Incoming call from user:', payload.fromUserId);
-        
-        setCallerName(payload.callerName || payload.from?.displayName || `User ${payload.fromUserId}`);
-        setCallType(payload.callType);
-        setCurrentCallId(payload.callId);
-        setIncomingCallOffer(payload.offer);
-        setIncomingCall(true);
-        setShowIncomingCall(true);
-        
-        // Play ringtone
-        playRingtone();
-        
-        toast({
-          title: 'Incoming call',
-          description: `${payload.callerName || 'Someone'} is calling you`,
-          duration: 10000
-        });
-      }
-      
-      if (data.type === 'call_answered') {
-        const payload = data.payload;
-        console.log('Call answered by user:', payload.fromUserId);
-        
-        stopRingtone();
-        setOutgoingCall(false);
-        setActiveCall(true);
-        
-        // Handle WebRTC answer
-        if (payload.answer) {
-          webrtcService.current.handleAnswer(payload.answer);
-        }
-      }
-      
-      if (data.type === 'call_ended') {
-        console.log('Call ended by remote user');
-        endCall();
-      }
-      
-      if (data.type === 'webrtc_offer') {
-        const payload = data.payload;
-        console.log('WebRTC offer received');
-        setIncomingCallOffer(payload.offer);
-      }
-      
-      if (data.type === 'webrtc_answer') {
-        const payload = data.payload;
-        console.log('WebRTC answer received');
-        
-        if (payload.answer) {
-          webrtcService.current.handleAnswer(payload.answer);
-        }
-      }
-      
-      if (data.type === 'webrtc_candidate') {
-        const payload = data.payload;
-        console.log('WebRTC ICE candidate received');
-        
-        if (payload.candidate) {
-          webrtcService.current.handleIceCandidate(payload.candidate);
-        }
       }
     };
 
-    // Add event listener
-    const ws = (sendMessage as any).__ws;
-    if (ws) {
-      ws.addEventListener('message', handleWebSocketMessage);
-      
-      return () => {
-        ws.removeEventListener('message', handleWebSocketMessage);
-      };
-    }
-  }, [isConnected, sendMessage, toast]);
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
+    };
 
-  // Ringtone management
-  const playRingtone = () => {
-    if (ringtoneRef.current) {
-      ringtoneRef.current.currentTime = 0;
-      ringtoneRef.current.play().catch(e => console.error('Error playing ringtone:', e));
-    }
+    return pc;
   };
 
+  // WebSocket event handlers
+  useEffect(() => {
+    if (!isConnected || !on) return;
+
+    const handleIncomingCall = (payload: any) => {
+      console.log('Incoming call received:', payload);
+      setCurrentCallId(payload.callId);
+      setIncomingCall(true);
+      setCallType(payload.callType);
+      setCallerName(payload.from?.displayName || payload.callerName || `User ${payload.fromUserId}`);
+      setShowIncomingCall(true);
+      setIncomingCallOffer(payload.offer);
+      
+      // Play ringtone
+      if (ringtoneRef.current) {
+        ringtoneRef.current.currentTime = 0;
+        ringtoneRef.current.play().catch(e => console.error('Error playing ringtone:', e));
+      }
+
+      toast({
+        title: 'Incoming call',
+        description: `${payload.from?.displayName || 'Someone'} is calling you`,
+        duration: 10000
+      });
+    };
+
+    const handleCallAnswered = (payload: any) => {
+      console.log('Call answered:', payload);
+      stopRingtone();
+      setOutgoingCall(false);
+      setActiveCall(true);
+      
+      // Handle WebRTC answer
+      if (peerConnectionRef.current && payload.answer) {
+        console.log('Setting remote description (answer)');
+        peerConnectionRef.current.setRemoteDescription(payload.answer)
+          .catch(error => console.error('Error setting remote description:', error));
+      }
+    };
+
+    const handleCallEnded = (payload: any) => {
+      console.log('Call ended:', payload);
+      endCall();
+    };
+
+    const handleWebRTCOffer = (payload: any) => {
+      console.log('WebRTC offer received:', payload);
+      setIncomingCallOffer(payload.offer);
+    };
+
+    const handleWebRTCAnswer = (payload: any) => {
+      console.log('WebRTC answer received:', payload);
+      if (peerConnectionRef.current && payload.answer) {
+        peerConnectionRef.current.setRemoteDescription(payload.answer)
+          .catch(error => console.error('Error setting remote description:', error));
+      }
+    };
+
+    const handleWebRTCCandidate = (payload: any) => {
+      console.log('WebRTC ICE candidate received:', payload);
+      if (peerConnectionRef.current && payload.candidate) {
+        peerConnectionRef.current.addIceCandidate(payload.candidate)
+          .catch(error => console.error('Error adding ICE candidate:', error));
+      }
+    };
+
+    // Register event handlers
+    const unsubscribeIncoming = on('incoming_call', handleIncomingCall);
+    const unsubscribeAnswered = on('call_answered', handleCallAnswered);
+    const unsubscribeEnded = on('call_ended', handleCallEnded);
+    const unsubscribeOffer = on('webrtc_offer', handleWebRTCOffer);
+    const unsubscribeAnswer = on('webrtc_answer', handleWebRTCAnswer);
+    const unsubscribeCandidate = on('webrtc_candidate', handleWebRTCCandidate);
+
+    return () => {
+      unsubscribeIncoming();
+      unsubscribeAnswered();
+      unsubscribeEnded();
+      unsubscribeOffer();
+      unsubscribeAnswer();
+      unsubscribeCandidate();
+    };
+  }, [isConnected, on, toast, currentCallId]);
+
+  // Ringtone management
   const stopRingtone = () => {
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
@@ -274,6 +257,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCurrentCallId(null);
     setIncomingCallOffer(null);
     stopRingtone();
+    
+    // Clean up peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
   };
 
   // Call functions
@@ -292,16 +281,34 @@ export function CallProvider({ children }: { children: ReactNode }) {
       const callId = `call_${user.id}_${targetUserId}_${Date.now()}`;
       setCurrentCallId(callId);
       
-      // Start WebRTC call
-      const offer = await webrtcService.current.startCall(callId, type === 'video');
+      // Get user media
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: type === 'video'
+      });
       
-      // Get local stream from WebRTC service
-      const stream = webrtcService.current.getLocalStream();
-      if (stream) {
-        setLocalStream(stream);
-        setLocalAudioEnabled(true);
-        setLocalVideoEnabled(type === 'video');
-      }
+      setLocalStream(stream);
+      setLocalAudioEnabled(true);
+      setLocalVideoEnabled(type === 'video');
+      
+      // Create peer connection
+      const pc = createPeerConnection();
+      peerConnectionRef.current = pc;
+      
+      // Add local stream tracks
+      stream.getTracks().forEach((track, index) => {
+        console.log(`Adding local track ${index}: ${track.kind}`);
+        pc.addTrack(track, stream);
+      });
+      
+      // Create offer
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === 'video'
+      });
+      
+      await pc.setLocalDescription(offer);
+      console.log('Created and set local offer');
       
       // Make API call to initiate call
       const response = await fetch('/api/calls/initiate', {
@@ -320,7 +327,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
       
       // Play outgoing call tone
-      playRingtone();
+      if (ringtoneRef.current) {
+        ringtoneRef.current.currentTime = 0;
+        ringtoneRef.current.play().catch(e => console.error('Error playing ringtone:', e));
+      }
       
       toast({
         title: 'Calling...',
@@ -328,7 +338,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       console.error('Error initiating call:', error);
-      webrtcService.current.endCall();
       resetCallState();
       toast({
         title: 'Call failed',
@@ -352,20 +361,34 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setShowIncomingCall(false);
       setIsInCall(true);
       
-      // Answer the call using WebRTC service
-      const answer = await webrtcService.current.answerCall(
-        currentCallId,
-        incomingCallOffer,
-        callType === 'video'
-      );
+      // Get user media
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === 'video'
+      });
       
-      // Get local stream from WebRTC service
-      const stream = webrtcService.current.getLocalStream();
-      if (stream) {
-        setLocalStream(stream);
-        setLocalAudioEnabled(true);
-        setLocalVideoEnabled(callType === 'video');
-      }
+      setLocalStream(stream);
+      setLocalAudioEnabled(true);
+      setLocalVideoEnabled(callType === 'video');
+      
+      // Create peer connection
+      const pc = createPeerConnection();
+      peerConnectionRef.current = pc;
+      
+      // Add local stream tracks
+      stream.getTracks().forEach((track, index) => {
+        console.log(`Adding local track ${index}: ${track.kind}`);
+        pc.addTrack(track, stream);
+      });
+      
+      // Set remote description (offer)
+      await pc.setRemoteDescription(incomingCallOffer);
+      console.log('Set remote offer');
+      
+      // Create answer
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      console.log('Created and set local answer');
       
       // Call API to accept the call
       const response = await fetch('/api/calls/answer', {
@@ -398,7 +421,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     console.log('Rejecting call');
     
     if (currentCallId) {
-      // Call API to reject the call
       fetch('/api/calls/hangup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -421,7 +443,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     console.log('Ending call');
     
     if (currentCallId) {
-      // Call API to end the call
       fetch('/api/calls/hangup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -431,8 +452,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }).catch(console.error);
     }
     
-    // End WebRTC call
-    webrtcService.current.endCall();
+    // Stop local stream
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        console.log('Stopping local track:', track.kind);
+        track.stop();
+      });
+    }
     
     resetCallState();
     
@@ -443,15 +469,27 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleMute = () => {
-    const newMuted = webrtcService.current.toggleAudio();
-    setIsMuted(!newMuted);
-    setLocalAudioEnabled(newMuted);
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+        setLocalAudioEnabled(audioTrack.enabled);
+        console.log('Audio toggled:', audioTrack.enabled);
+      }
+    }
   };
 
   const toggleVideo = () => {
-    const newVideoEnabled = webrtcService.current.toggleVideo();
-    setIsVideoEnabled(newVideoEnabled);
-    setLocalVideoEnabled(newVideoEnabled);
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoEnabled(videoTrack.enabled);
+        setLocalVideoEnabled(videoTrack.enabled);
+        console.log('Video toggled:', videoTrack.enabled);
+      }
+    }
   };
 
   const value: CallContextType = {
