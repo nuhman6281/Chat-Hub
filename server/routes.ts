@@ -1230,10 +1230,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Call answer endpoint
   app.post('/api/calls/answer', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
-      const { callId, accepted } = req.body;
+      const { callId, accepted, answer } = req.body;
       const userId = (req.user as any).id;
       
-      console.log('Call answer request:', { callId, accepted, userId });
+      console.log('Call answer request:', { callId, accepted, userId, hasAnswer: !!answer });
       
       if (!callId || accepted === undefined) {
         return res.status(400).json({ message: 'Call ID and accepted status are required' });
@@ -1261,6 +1261,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const eventType = accepted ? 'call_answered' : 'call_rejected';
       const eventPayload = {
         callId,
+        answer: accepted ? answer : undefined,
+        fromUserId: userId,
         by: {
           id: responder.id,
           username: responder.username,
