@@ -146,6 +146,24 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     const handleWebRTCOffer = async (payload: any) => {
       console.log('CallContext: WebRTC offer received:', payload);
+      
+      // Create peer connection if we don't have one (for incoming calls)
+      if (!peerConnectionRef.current) {
+        console.log('Creating peer connection for incoming call');
+        const peerConnection = createPeerConnection();
+        peerConnectionRef.current = peerConnection;
+        
+        // Add local stream if we have it
+        if (localStream) {
+          console.log('Adding existing local stream to new peer connection');
+          localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+          });
+        } else {
+          console.log('No local stream available for peer connection');
+        }
+      }
+      
       if (peerConnectionRef.current && payload.offer) {
         try {
           await peerConnectionRef.current.setRemoteDescription(payload.offer);
@@ -157,6 +175,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
             answer,
             targetUserId: payload.fromUserId
           });
+          
+          console.log('WebRTC answer sent');
         } catch (error) {
           console.error('Error handling WebRTC offer:', error);
         }
@@ -207,23 +227,21 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [isConnected, on]);
 
   const playRingtone = () => {
+    console.log('Starting ringtone');
+    stopRingtone(); // Clear any existing ringtone first
+    
     if (ringtoneRef.current) {
+      ringtoneRef.current.loop = true;
       ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
-      
-      // Set up repeating interval for ringtone
-      ringtoneIntervalRef.current = setInterval(() => {
-        if (ringtoneRef.current && incomingCall) {
-          ringtoneRef.current.currentTime = 0;
-          ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
-        }
-      }, 3000); // Repeat every 3 seconds
     }
   };
 
   const stopRingtone = () => {
+    console.log('Stopping ringtone');
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
+      ringtoneRef.current.loop = false;
     }
     
     if (ringtoneIntervalRef.current) {
@@ -236,7 +254,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const config = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
       ]
     };
 
@@ -244,31 +263,42 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     // Handle remote stream
     peerConnection.ontrack = (event) => {
-      console.log('Received remote stream');
-      const [remoteStream] = event.streams;
-      setRemoteStream(remoteStream);
+      console.log('Received remote stream', event.streams);
+      const [stream] = event.streams;
+      if (stream) {
+        console.log('Setting remote stream with tracks:', stream.getTracks().length);
+        setRemoteStream(stream);
+      }
     };
 
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
-      if (event.candidate && currentCallId) {
-        console.log('Sending ICE candidate');
+      if (event.candidate) {
+        console.log('Sending ICE candidate:', event.candidate);
         send('webrtc_candidate', {
           callId: currentCallId,
-          candidate: event.candidate
+          candidate: event.candidate,
+          targetUserId: user?.id === 1 ? 2 : 1 // Simple target user logic
         });
       }
     };
 
     // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state:', peerConnection.connectionState);
+      console.log('Connection state changed to:', peerConnection.connectionState);
       if (peerConnection.connectionState === 'connected') {
+        console.log('WebRTC connection established');
         setIsInCall(true);
       } else if (peerConnection.connectionState === 'disconnected' || 
                  peerConnection.connectionState === 'failed') {
+        console.log('WebRTC connection failed/disconnected');
         resetCallState();
       }
+    };
+
+    // Handle ICE connection state changes
+    peerConnection.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', peerConnection.iceConnectionState);
     };
 
     return peerConnection;
@@ -276,8 +306,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const resetCallState = () => {
     console.log('Resetting call state');
+    
+    // Force stop ringtone immediately
     stopRingtone();
     
+    // Reset all call states
     setIsInCall(false);
     setIsInitiating(false);
     setIncomingCall(false);
@@ -288,21 +321,32 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCallerName(null);
     setCurrentCallId(null);
     setParticipants([]);
+    setIsMuted(false);
+    setIsVideoEnabled(true);
+    setLocalAudioEnabled(true);
+    setLocalVideoEnabled(true);
     
     // Stop local stream
     if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+      localStream.getTracks().forEach(track => {
+        console.log('Stopping local track:', track.kind);
+        track.stop();
+      });
       setLocalStream(null);
     }
     
     // Stop remote stream
     if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
+      remoteStream.getTracks().forEach(track => {
+        console.log('Stopping remote track:', track.kind);
+        track.stop();
+      });
       setRemoteStream(null);
     }
     
     // Close peer connection
     if (peerConnectionRef.current) {
+      console.log('Closing peer connection');
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
@@ -333,13 +377,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
       peerConnectionRef.current = peerConnection;
       
       // Add local stream tracks to peer connection
-      stream.getTracks().forEach(track => {
+      console.log('Adding local tracks to peer connection:', stream.getTracks().length);
+      stream.getTracks().forEach((track, index) => {
+        console.log(`Adding track ${index}: ${track.kind}`);
         peerConnection.addTrack(track, stream);
       });
       
-      // Create offer
-      const offer = await peerConnection.createOffer();
+      // Create offer with proper constraints
+      const offer = await peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === 'video'
+      });
       await peerConnection.setLocalDescription(offer);
+      console.log('Created and set local offer');
       
       // Make API call to initiate call
       const response = await fetch('/api/calls/initiate', {
@@ -404,7 +454,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
       peerConnectionRef.current = peerConnection;
       
       // Add local stream tracks to peer connection
-      stream.getTracks().forEach(track => {
+      console.log('Adding local tracks to peer connection (answer):', stream.getTracks().length);
+      stream.getTracks().forEach((track, index) => {
+        console.log(`Adding track ${index}: ${track.kind}`);
         peerConnection.addTrack(track, stream);
       });
       

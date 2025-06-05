@@ -243,6 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const targetUserId = data.payload.targetUserId;
           const targetClients = clients.filter(client => client.userId === targetUserId);
           
+          console.log(`Forwarding ICE candidate to ${targetClients.length} target clients`);
           targetClients.forEach(client => {
             if (client.ws.readyState === WebSocket.OPEN) {
               client.ws.send(JSON.stringify({
