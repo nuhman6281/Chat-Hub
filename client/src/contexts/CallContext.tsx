@@ -110,12 +110,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && currentCallId) {
-        console.log('Sending ICE candidate');
+        console.log('Generated ICE candidate:', event.candidate.type, event.candidate.candidate);
         send('webrtc_candidate', {
           candidate: event.candidate,
-          callId: currentCallId,
-          targetUserId: 0 // Will be set by server
+          callId: currentCallId
         });
+      } else if (!event.candidate) {
+        console.log('ICE gathering completed');
       }
     };
 
@@ -136,6 +137,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     pc.oniceconnectionstatechange = () => {
       console.log('ICE connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected') {
+        console.log('✅ ICE connection established - audio should work now');
+      } else if (pc.iceConnectionState === 'failed') {
+        console.error('❌ ICE connection failed - audio will not work');
+      }
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log('ICE gathering state:', pc.iceGatheringState);
     };
 
     return pc;
@@ -310,21 +320,28 @@ export function CallProvider({ children }: { children: ReactNode }) {
       await pc.setLocalDescription(offer);
       console.log('Created and set local offer');
       
-      // Make API call to initiate call
+      // Make API call to initiate call (without offer for now)
       const response = await fetch('/api/calls/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetUserId,
           callType: type,
-          callId,
-          offer
+          callId
         })
       });
       
       if (!response.ok) {
         throw new Error('Failed to initiate call');
       }
+      
+      // Send WebRTC offer via WebSocket after call is initiated
+      console.log('Sending WebRTC offer to target user:', targetUserId);
+      send('webrtc_offer', {
+        offer,
+        callId,
+        targetUserId
+      });
       
       // Play outgoing call tone
       if (ringtoneRef.current) {
@@ -351,7 +368,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const answerCall = async () => {
     console.log('answerCall function called');
-    console.log('Current state:', { currentCallId, callType });
+    console.log('Current state:', { currentCallId, callType, hasOffer: !!incomingCallOffer });
     
     if (!currentCallId) {
       console.error('No current call ID');
@@ -385,7 +402,26 @@ export function CallProvider({ children }: { children: ReactNode }) {
         pc.addTrack(track, stream);
       });
       
-      // Call API to accept the call (simple acceptance without WebRTC signaling for now)
+      // If we have an incoming offer, set it as remote description and create answer
+      if (incomingCallOffer) {
+        console.log('Setting remote description (offer) and creating answer');
+        await pc.setRemoteDescription(incomingCallOffer);
+        
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        console.log('Created and set local answer');
+        
+        // Send WebRTC answer back to caller via WebSocket
+        const targetUserId = parseInt(currentCallId.split('_')[1]); // Extract caller ID from call ID
+        console.log('Sending WebRTC answer to caller:', targetUserId);
+        send('webrtc_answer', {
+          answer,
+          callId: currentCallId,
+          targetUserId
+        });
+      }
+      
+      // Call API to accept the call
       const response = await fetch('/api/calls/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -399,7 +435,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to answer call');
       }
       
-      console.log('Call answered successfully - audio stream active');
+      console.log('Call answered successfully - WebRTC signaling initiated');
     } catch (error) {
       console.error('Error answering call:', error);
       endCall();
