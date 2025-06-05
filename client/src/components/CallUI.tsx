@@ -172,6 +172,22 @@ export function ActiveCallUI() {
     toggleVideo 
   } = useCall();
   
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  
+  // Set up video streams when they change
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+  
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+  
   if (!activeCall) return null;
 
   // Create local participant if we have a local stream
@@ -204,13 +220,49 @@ export function ActiveCallUI() {
           </Button>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {allParticipants.map(participant => (
-            <VideoTile 
-              key={participant.userId} 
-              participant={participant} 
-            />
-          ))}
+        <div className="flex-1 overflow-y-auto p-4">
+          {callType === 'video' ? (
+            <div className="relative w-full h-96 bg-gray-900 rounded-lg overflow-hidden">
+              {/* Remote video (main view) */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+              
+              {/* Local video (picture-in-picture) */}
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute top-4 right-4 w-32 h-24 bg-gray-800 rounded border-2 border-white object-cover"
+              />
+              
+              {/* No video indicators */}
+              {!remoteStream && (
+                <div className="absolute inset-0 flex items-center justify-center text-white">
+                  <div className="text-center">
+                    <VideoOff className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Waiting for remote video...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
+                  <Phone className="h-8 w-8 text-gray-600" />
+                </div>
+                <p className="text-lg font-medium">Audio Call Active</p>
+                <p className="text-sm text-gray-500">
+                  {localAudioEnabled ? 'Microphone active' : 'Microphone muted'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="flex justify-center gap-4 py-4">
