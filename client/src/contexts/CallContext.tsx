@@ -471,9 +471,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
         console.log('Setting remote description (offer) and creating answer');
         await pc.setRemoteDescription(incomingCallOffer);
         
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: callType === 'video'
+        });
+        
+        console.log('Created WebRTC answer with enhanced options');
         await pc.setLocalDescription(answer);
-        console.log('Created and set local answer');
+        console.log('Set local answer description - ready for media flow');
         
         // Send WebRTC answer back to caller via WebSocket
         const targetUserId = parseInt(currentCallId.split('_')[1]); // Extract caller ID from call ID
