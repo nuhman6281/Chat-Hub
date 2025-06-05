@@ -108,7 +108,10 @@ export function IncomingCallDialog() {
             variant="default" 
             size="icon" 
             className="rounded-full h-12 w-12 bg-green-600 hover:bg-green-700"
-            onClick={answerCall}
+            onClick={() => {
+              console.log('Green answer button clicked!');
+              answerCall();
+            }}
           >
             <Phone className="h-5 w-5" />
           </Button>

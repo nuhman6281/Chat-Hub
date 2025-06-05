@@ -350,9 +350,30 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   const answerCall = async () => {
-    if (!currentCallId || !incomingCallOffer) return;
+    console.log('answerCall function called');
+    console.log('Current state:', { currentCallId, hasOffer: !!incomingCallOffer, callType });
     
-    console.log('Answering call:', currentCallId);
+    if (!currentCallId) {
+      console.error('No current call ID');
+      toast({
+        title: 'Call error',
+        description: 'No active call to answer',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    if (!incomingCallOffer) {
+      console.error('No incoming call offer');
+      toast({
+        title: 'Call error', 
+        description: 'No call offer received',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    console.log('Proceeding to answer call:', currentCallId);
     
     try {
       stopRingtone();
