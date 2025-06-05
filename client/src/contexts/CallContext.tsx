@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
-import { useSocket } from '@/lib/socket';
+import { useWebSocket } from '@/hooks/use-websocket';
 
 export type CallType = 'audio' | 'video';
 
@@ -56,7 +56,7 @@ export function useCall() {
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { isConnected, on, send } = useSocket();
+  const { isConnected, on, send } = useWebSocket(user?.id);
   
   // Call state
   const [isInCall, setIsInCall] = useState(false);

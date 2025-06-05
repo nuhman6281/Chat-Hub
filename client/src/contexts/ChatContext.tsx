@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useSocket } from '@/lib/socket';
+import { useWebSocket } from '@/hooks/use-websocket';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
 import { encryptionService } from '@/lib/encryption';
@@ -118,7 +118,7 @@ export const ChatContext = createContext<ChatContextType | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { isConnected, on, send } = useSocket();
+  const { isConnected, on, send } = useWebSocket(user?.id);
   const { toast } = useToast();
   
   // State
