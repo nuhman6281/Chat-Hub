@@ -146,10 +146,23 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     console.log('CallContext: Registering WebSocket event handlers with on function');
-    const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
-    const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
-    const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
-    const unsubscribeCallEnded = on('call_ended', handleCallEnded);
+    // Use namespaced handlers to avoid conflicts with ChatContext
+    const unsubscribeIncomingCall = on('incoming_call', (payload: any) => {
+      console.log('CallContext: Processing incoming_call event');
+      handleIncomingCall(payload);
+    });
+    const unsubscribeCallAnswered = on('call_answered', (payload: any) => {
+      console.log('CallContext: Processing call_answered event');
+      handleCallAnswered(payload);
+    });
+    const unsubscribeCallRejected = on('call_rejected', (payload: any) => {
+      console.log('CallContext: Processing call_rejected event');
+      handleCallRejected(payload);
+    });
+    const unsubscribeCallEnded = on('call_ended', (payload: any) => {
+      console.log('CallContext: Processing call_ended event');
+      handleCallEnded(payload);
+    });
 
     return () => {
       console.log('CallContext: Cleaning up WebSocket event handlers');
