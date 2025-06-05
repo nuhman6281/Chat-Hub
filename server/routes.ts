@@ -1095,7 +1095,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/calls/initiate', ensureAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const { callType, targetUserId, receiverId, channelId } = req.body;
+      const { callType, targetUserId, receiverId, channelId, offer, callId: providedCallId } = req.body;
       const actualReceiverId = targetUserId || receiverId;
       
       if (!['voice', 'video', 'audio'].includes(callType)) {
@@ -1109,8 +1109,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'User not found' });
         }
         
-        // Generate unique call ID
-        const callId = `call_${userId}_${actualReceiverId}_${Date.now()}`;
+        // Use provided call ID or generate unique call ID
+        const callId = providedCallId || `call_${userId}_${actualReceiverId}_${Date.now()}`;
         
         // Notify receiver via WebSocket for call ringing
         const receiverClients = clients.filter(c => c.userId === actualReceiverId);
@@ -1120,6 +1120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'User is not online' });
         }
         
+        console.log('Sending incoming call with offer:', !!offer);
+        
         receiverClients.forEach(client => {
           if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(JSON.stringify({
@@ -1127,6 +1129,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               payload: {
                 callId,
                 callType: callType === 'audio' ? 'voice' : callType, // Normalize audio to voice
+                offer: offer, // Include WebRTC offer
+                fromUserId: userId,
                 from: {
                   id: initiator!.id,
                   username: initiator!.username,

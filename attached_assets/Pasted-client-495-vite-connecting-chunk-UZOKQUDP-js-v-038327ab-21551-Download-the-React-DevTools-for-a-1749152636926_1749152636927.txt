@@ -1,0 +1,182 @@
+client:495 [vite] connecting...
+chunk-UZOKQUDP.js?v=038327ab:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+client:536 WebSocket connection to 'wss://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/?token=CiJ04kpO5W68' failed: 
+setupWebSocket @ client:536
+(anonymous) @ client:531
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=CiJ04kpO5W68' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+setupWebSocket @ client:536
+fallback @ client:509
+(anonymous) @ client:555
+AuthWrapper.tsx:62 
+            
+            
+           GET https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/auth/user 401 (Unauthorized)
+queryFn @ AuthWrapper.tsx:62
+fetchFn @ @tanstack_react-query.js?v=038327ab:840
+run @ @tanstack_react-query.js?v=038327ab:494
+start @ @tanstack_react-query.js?v=038327ab:536
+fetch @ @tanstack_react-query.js?v=038327ab:926
+executeFetch_fn @ @tanstack_react-query.js?v=038327ab:2211
+onSubscribe @ @tanstack_react-query.js?v=038327ab:1898
+subscribe @ @tanstack_react-query.js?v=038327ab:24
+(anonymous) @ @tanstack_react-query.js?v=038327ab:3022
+subscribeToStore @ chunk-UZOKQUDP.js?v=038327ab:11984
+commitHookEffectListMount @ chunk-UZOKQUDP.js?v=038327ab:16915
+commitPassiveMountOnFiber @ chunk-UZOKQUDP.js?v=038327ab:18156
+commitPassiveMountEffects_complete @ chunk-UZOKQUDP.js?v=038327ab:18129
+commitPassiveMountEffects_begin @ chunk-UZOKQUDP.js?v=038327ab:18119
+commitPassiveMountEffects @ chunk-UZOKQUDP.js?v=038327ab:18109
+flushPassiveEffectsImpl @ chunk-UZOKQUDP.js?v=038327ab:19490
+flushPassiveEffects @ chunk-UZOKQUDP.js?v=038327ab:19447
+performSyncWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18868
+flushSyncCallbacks @ chunk-UZOKQUDP.js?v=038327ab:9119
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19432
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+finishConcurrentRender @ chunk-UZOKQUDP.js?v=038327ab:18805
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18718
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+/auth:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) <input data-replit-metadata=​"client/​src/​pages/​auth-page.tsx:​133:​28" data-component-name=​"Input" type=​"password" class=​"flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:​border-0 file:​bg-transparent file:​text-sm file:​font-medium file:​text-foreground placeholder:​text-muted-foreground focus-visible:​outline-none focus-visible:​ring-2 focus-visible:​ring-ring focus-visible:​ring-offset-2 disabled:​cursor-not-allowed disabled:​opacity-50 md:​text-sm" placeholder=​"Enter your password" name=​"password" id=​":​r4:​-form-item" aria-describedby=​":​r4:​-form-item-description" aria-invalid=​"false" value>​flex
+AuthWrapper.tsx:85 
+            
+            
+           POST https://602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/api/auth/login 401 (Unauthorized)
+mutationFn @ AuthWrapper.tsx:85
+fn @ @tanstack_react-query.js?v=038327ab:1189
+run @ @tanstack_react-query.js?v=038327ab:494
+start @ @tanstack_react-query.js?v=038327ab:536
+execute @ @tanstack_react-query.js?v=038327ab:1225
+await in execute
+mutate @ @tanstack_react-query.js?v=038327ab:2630
+(anonymous) @ @tanstack_react-query.js?v=038327ab:3295
+onLoginSubmit @ auth-page.tsx:69
+(anonymous) @ chunk-XJYEGDCZ.js?v=038327ab:1465
+await in (anonymous)
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js?v=038327ab:3736
+executeDispatch @ chunk-UZOKQUDP.js?v=038327ab:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js?v=038327ab:7034
+processDispatchQueue @ chunk-UZOKQUDP.js?v=038327ab:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js?v=038327ab:7051
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js?v=038327ab:18913
+batchedUpdates @ chunk-UZOKQUDP.js?v=038327ab:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js?v=038327ab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js?v=038327ab:5478
+dispatchEvent @ chunk-UZOKQUDP.js?v=038327ab:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js?v=038327ab:5449
+602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) <input data-replit-metadata=​"client/​src/​pages/​auth-page.tsx:​133:​28" data-component-name=​"Input" type=​"password" class=​"flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:​border-0 file:​bg-transparent file:​text-sm file:​font-medium file:​text-foreground placeholder:​text-muted-foreground focus-visible:​outline-none focus-visible:​ring-2 focus-visible:​ring-ring focus-visible:​ring-offset-2 disabled:​cursor-not-allowed disabled:​opacity-50 md:​text-sm" placeholder=​"Enter your password" name=​"password" id=​":​r9:​-form-item" aria-describedby=​":​r9:​-form-item-description" aria-invalid=​"false" value>​flex
+websocket-service.ts:37 WebSocket connected
+websocket-service.ts:112 WebSocket message sent: auth {userId: 2}
+websocket-service.ts:126 Handler registered for incoming_call, total: 1
+websocket-service.ts:126 Handler registered for call_answered, total: 1
+websocket-service.ts:126 Handler registered for call_ended, total: 1
+websocket-service.ts:126 Handler registered for webrtc_offer, total: 1
+websocket-service.ts:126 Handler registered for webrtc_answer, total: 1
+websocket-service.ts:126 Handler registered for webrtc_candidate, total: 1
+websocket-service.ts:112 WebSocket message sent: auth {userId: 2}
+websocket-service.ts:126 Handler registered for new_message, total: 1
+websocket-service.ts:126 Handler registered for incoming_call, total: 2
+websocket-service.ts:126 Handler registered for call_answered, total: 2
+websocket-service.ts:126 Handler registered for call_rejected, total: 1
+websocket-service.ts:126 Handler registered for call_ended, total: 2
+websocket-service.ts:126 Handler registered for call_ringing, total: 1
+websocket-service.ts:51 WebSocket event received: auth_success undefined
+websocket-service.ts:65 No handlers registered for auth_success
+websocket-service.ts:51 WebSocket event received: auth_success undefined
+websocket-service.ts:65 No handlers registered for auth_success
+websocket-service.ts:51 WebSocket event received: incoming_call {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+websocket-service.ts:55 Executing 2 handlers for incoming_call
+websocket-service.ts:58 Calling handler 1 for incoming_call
+CallContext.tsx:149 Incoming call received: {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+websocket-service.ts:58 Calling handler 2 for incoming_call
+ChatContext.tsx:268 Received incoming call: {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+websocket-service.ts:135 Handler unregistered for incoming_call, remaining: 1
+websocket-service.ts:135 Handler unregistered for call_answered, remaining: 1
+websocket-service.ts:135 Handler unregistered for call_ended, remaining: 1
+websocket-service.ts:135 Handler unregistered for webrtc_offer, remaining: 0
+websocket-service.ts:135 Handler unregistered for webrtc_answer, remaining: 0
+websocket-service.ts:135 Handler unregistered for webrtc_candidate, remaining: 0
+websocket-service.ts:126 Handler registered for incoming_call, total: 2
+websocket-service.ts:126 Handler registered for call_answered, total: 2
+websocket-service.ts:126 Handler registered for call_ended, total: 2
+websocket-service.ts:126 Handler registered for webrtc_offer, total: 1
+websocket-service.ts:126 Handler registered for webrtc_answer, total: 1
+websocket-service.ts:126 Handler registered for webrtc_candidate, total: 1
+@radix-ui_react-dialog.js?v=038327ab:339 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ @radix-ui_react-dialog.js?v=038327ab:339
+commitHookEffectListMount @ chunk-UZOKQUDP.js?v=038327ab:16915
+commitPassiveMountOnFiber @ chunk-UZOKQUDP.js?v=038327ab:18156
+commitPassiveMountEffects_complete @ chunk-UZOKQUDP.js?v=038327ab:18129
+commitPassiveMountEffects_begin @ chunk-UZOKQUDP.js?v=038327ab:18119
+commitPassiveMountEffects @ chunk-UZOKQUDP.js?v=038327ab:18109
+flushPassiveEffectsImpl @ chunk-UZOKQUDP.js?v=038327ab:19490
+flushPassiveEffects @ chunk-UZOKQUDP.js?v=038327ab:19447
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19416
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+performSyncWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18895
+flushSyncCallbacks @ chunk-UZOKQUDP.js?v=038327ab:9119
+commitRootImpl @ chunk-UZOKQUDP.js?v=038327ab:19432
+commitRoot @ chunk-UZOKQUDP.js?v=038327ab:19277
+finishConcurrentRender @ chunk-UZOKQUDP.js?v=038327ab:18805
+performConcurrentWorkOnRoot @ chunk-UZOKQUDP.js?v=038327ab:18718
+workLoop @ chunk-UZOKQUDP.js?v=038327ab:197
+flushWork @ chunk-UZOKQUDP.js?v=038327ab:176
+performWorkUntilDeadline @ chunk-UZOKQUDP.js?v=038327ab:384
+602d5c0f-93e1-4f72-8203-759e9cb06e8b-00-3laoulkprstbd.spock.replit.dev/:1 Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using the inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden.
+Element with focus: <button.inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full h-12 w-12>
+Ancestor with aria-hidden: <div.fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg sm:max-w-md#radix-:r19:> <div role=​"dialog" id=​"radix-:​r19:​" aria-describedby=​"radix-:​r1b:​" aria-labelledby=​"radix-:​r1a:​" data-state=​"open" data-replit-metadata=​"client/​src/​components/​CallUI.tsx:​82:​6" data-component-name=​"DialogContent" class=​"fixed left-[50%]​ top-[50%]​ z-50 grid w-full max-w-lg translate-x-[-50%]​ translate-y-[-50%]​ gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]​:​animate-in data-[state=closed]​:​animate-out data-[state=closed]​:​fade-out-0 data-[state=open]​:​fade-in-0 data-[state=closed]​:​zoom-out-95 data-[state=open]​:​zoom-in-95 data-[state=closed]​:​slide-out-to-left-1/​2 data-[state=closed]​:​slide-out-to-top-[48%]​ data-[state=open]​:​slide-in-from-left-1/​2 data-[state=open]​:​slide-in-from-top-[48%]​ sm:​rounded-lg sm:​max-w-md" tabindex=​"-1" data-aria-hidden=​"true" aria-hidden=​"true">​…​</div>​grid
+websocket-service.ts:51 WebSocket event received: incoming_call {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+websocket-service.ts:55 Executing 2 handlers for incoming_call
+websocket-service.ts:58 Calling handler 1 for incoming_call
+ChatContext.tsx:268 Received incoming call: {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+websocket-service.ts:58 Calling handler 2 for incoming_call
+CallContext.tsx:149 Incoming call received: {callId: 'call_1_2_1749152591001', callType: 'voice', from: {…}}
+CallUI.tsx:112 Green answer button clicked!
+CallContext.tsx:353 answerCall function called
+CallContext.tsx:354 Current state: {currentCallId: 'call_1_2_1749152591001', hasOffer: false, callType: 'voice'}
+CallContext.tsx:367 No incoming call offer
+answerCall @ CallContext.tsx:367
+onClick @ CallUI.tsx:113
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js?v=038327ab:3736
+executeDispatch @ chunk-UZOKQUDP.js?v=038327ab:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js?v=038327ab:7034
+processDispatchQueue @ chunk-UZOKQUDP.js?v=038327ab:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js?v=038327ab:7051
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js?v=038327ab:18913
+batchedUpdates @ chunk-UZOKQUDP.js?v=038327ab:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js?v=038327ab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js?v=038327ab:5478
+dispatchEvent @ chunk-UZOKQUDP.js?v=038327ab:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js?v=038327ab:5449
+CallUI.tsx:112 Green answer button clicked!
+CallContext.tsx:353 answerCall function called
+CallContext.tsx:354 Current state: {currentCallId: 'call_1_2_1749152591001', hasOffer: false, callType: 'voice'}
+CallContext.tsx:367 No incoming call offer
+answerCall @ CallContext.tsx:367
+onClick @ CallUI.tsx:113
+callCallback2 @ chunk-UZOKQUDP.js?v=038327ab:3674
+invokeGuardedCallbackDev @ chunk-UZOKQUDP.js?v=038327ab:3699
+invokeGuardedCallback @ chunk-UZOKQUDP.js?v=038327ab:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-UZOKQUDP.js?v=038327ab:3736
+executeDispatch @ chunk-UZOKQUDP.js?v=038327ab:7014
+processDispatchQueueItemsInOrder @ chunk-UZOKQUDP.js?v=038327ab:7034
+processDispatchQueue @ chunk-UZOKQUDP.js?v=038327ab:7043
+dispatchEventsForPlugins @ chunk-UZOKQUDP.js?v=038327ab:7051
+(anonymous) @ chunk-UZOKQUDP.js?v=038327ab:7174
+batchedUpdates$1 @ chunk-UZOKQUDP.js?v=038327ab:18913
+batchedUpdates @ chunk-UZOKQUDP.js?v=038327ab:3579
+dispatchEventForPluginEventSystem @ chunk-UZOKQUDP.js?v=038327ab:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-UZOKQUDP.js?v=038327ab:5478
+dispatchEvent @ chunk-UZOKQUDP.js?v=038327ab:5472
+dispatchDiscreteEvent @ chunk-UZOKQUDP.js?v=038327ab:5449
