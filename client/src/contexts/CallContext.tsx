@@ -109,13 +109,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Enhanced ICE candidate handling
+    // Enhanced ICE candidate handling with proper target routing
     pc.onicecandidate = (event) => {
-      if (event.candidate && currentCallId) {
-        console.log('Generated ICE candidate:', event.candidate.type, event.candidate.protocol);
+      if (event.candidate && currentCallId && user) {
+        // Extract target user ID from call ID
+        const callIdParts = currentCallId.split('_');
+        const targetUserId = callIdParts[1] === user?.id.toString() ? 
+          parseInt(callIdParts[2]) : parseInt(callIdParts[1]);
+        
+        console.log('Generated ICE candidate:', event.candidate.type, 'for target user:', targetUserId);
         send('webrtc_candidate', {
           candidate: event.candidate,
-          callId: currentCallId
+          callId: currentCallId,
+          targetUserId: targetUserId
         });
       } else if (!event.candidate) {
         console.log('ICE gathering completed');
@@ -462,7 +468,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       
       // Add local stream tracks to peer connection
       stream.getTracks().forEach((track, index) => {
-        console.log(`Adding local track ${index}: ${track.kind}`);
+        console.log(`Answerer adding local track ${index}: ${track.kind}`);
         pc.addTrack(track, stream);
       });
       
