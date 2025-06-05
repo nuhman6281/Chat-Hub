@@ -1120,10 +1120,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: 'User is not online' });
         }
         
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
-        console.log('Extracted offer:', offer);
-        console.log('Sending incoming call with offer:', !!offer);
-        
         receiverClients.forEach(client => {
           if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(JSON.stringify({
@@ -1131,7 +1127,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               payload: {
                 callId,
                 callType: callType === 'audio' ? 'voice' : callType, // Normalize audio to voice
-                offer: offer, // Include WebRTC offer
                 fromUserId: userId,
                 from: {
                   id: initiator!.id,
