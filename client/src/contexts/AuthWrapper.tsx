@@ -54,12 +54,19 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     queryKey: ['/api/auth/user'],
     queryFn: async () => {
       try {
-        const headers: HeadersInit = {};
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        };
+        
         if (authToken) {
           headers['Authorization'] = `Bearer ${authToken}`;
         }
         
-        const res = await fetch('/api/auth/user', { headers });
+        const res = await fetch('/api/auth/user', { 
+          headers,
+          credentials: 'include'
+        });
+        
         if (!res.ok) {
           if (res.status === 401) {
             // Clear token if unauthorized
