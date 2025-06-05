@@ -203,6 +203,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (data.directMessageId) {
             broadcastToDirectMessage(data.directMessageId, typingData);
           }
+        } else if (data.type === 'webrtc_offer' && userId) {
+          // Handle WebRTC offer
+          console.log('WebRTC offer received:', data.payload);
+          const targetUserId = data.payload.targetUserId;
+          const targetClients = clients.filter(client => client.userId === targetUserId);
+          
+          targetClients.forEach(client => {
+            if (client.ws.readyState === WebSocket.OPEN) {
+              client.ws.send(JSON.stringify({
+                type: 'webrtc_offer',
+                payload: {
+                  ...data.payload,
+                  fromUserId: userId
+                }
+              }));
+            }
+          });
+        } else if (data.type === 'webrtc_answer' && userId) {
+          // Handle WebRTC answer
+          console.log('WebRTC answer received:', data.payload);
+          const targetUserId = data.payload.targetUserId;
+          const targetClients = clients.filter(client => client.userId === targetUserId);
+          
+          targetClients.forEach(client => {
+            if (client.ws.readyState === WebSocket.OPEN) {
+              client.ws.send(JSON.stringify({
+                type: 'webrtc_answer',
+                payload: {
+                  ...data.payload,
+                  fromUserId: userId
+                }
+              }));
+            }
+          });
+        } else if (data.type === 'webrtc_candidate' && userId) {
+          // Handle ICE candidate
+          console.log('ICE candidate received:', data.payload);
+          const targetUserId = data.payload.targetUserId;
+          const targetClients = clients.filter(client => client.userId === targetUserId);
+          
+          targetClients.forEach(client => {
+            if (client.ws.readyState === WebSocket.OPEN) {
+              client.ws.send(JSON.stringify({
+                type: 'webrtc_candidate',
+                payload: {
+                  ...data.payload,
+                  fromUserId: userId
+                }
+              }));
+            }
+          });
         } else if (!userId) {
           ws.send(JSON.stringify({ 
             type: 'error', 

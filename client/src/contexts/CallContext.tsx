@@ -76,9 +76,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   
-  // Ringing sound management
+  // WebRTC and audio management
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize ringtone
   useEffect(() => {
@@ -100,9 +101,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setShowIncomingCall(true);
       
       // Play ringtone
-      if (ringtoneRef.current) {
-        ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
-      }
+      playRingtone();
 
       toast({
         title: 'Incoming call',
@@ -145,11 +144,55 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
     };
 
+    const handleWebRTCOffer = async (payload: any) => {
+      console.log('CallContext: WebRTC offer received:', payload);
+      if (peerConnectionRef.current && payload.offer) {
+        try {
+          await peerConnectionRef.current.setRemoteDescription(payload.offer);
+          const answer = await peerConnectionRef.current.createAnswer();
+          await peerConnectionRef.current.setLocalDescription(answer);
+          
+          send('webrtc_answer', {
+            callId: currentCallId,
+            answer,
+            targetUserId: payload.fromUserId
+          });
+        } catch (error) {
+          console.error('Error handling WebRTC offer:', error);
+        }
+      }
+    };
+
+    const handleWebRTCAnswer = async (payload: any) => {
+      console.log('CallContext: WebRTC answer received:', payload);
+      if (peerConnectionRef.current && payload.answer) {
+        try {
+          await peerConnectionRef.current.setRemoteDescription(payload.answer);
+        } catch (error) {
+          console.error('Error handling WebRTC answer:', error);
+        }
+      }
+    };
+
+    const handleWebRTCCandidate = async (payload: any) => {
+      console.log('CallContext: ICE candidate received:', payload);
+      if (peerConnectionRef.current && payload.candidate) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(payload.candidate);
+        } catch (error) {
+          console.error('Error adding ICE candidate:', error);
+        }
+      }
+    };
+
     console.log('CallContext: Registering WebSocket event handlers');
     const unsubscribeIncomingCall = on('incoming_call', handleIncomingCall);
     const unsubscribeCallAnswered = on('call_answered', handleCallAnswered);
     const unsubscribeCallRejected = on('call_rejected', handleCallRejected);
     const unsubscribeCallEnded = on('call_ended', handleCallEnded);
+    const unsubscribeWebRTCOffer = on('webrtc_offer', handleWebRTCOffer);
+    const unsubscribeWebRTCAnswer = on('webrtc_answer', handleWebRTCAnswer);
+    const unsubscribeWebRTCCandidate = on('webrtc_candidate', handleWebRTCCandidate);
 
     return () => {
       console.log('CallContext: Cleaning up WebSocket event handlers');
@@ -157,17 +200,84 @@ export function CallProvider({ children }: { children: ReactNode }) {
       if (unsubscribeCallAnswered) unsubscribeCallAnswered();
       if (unsubscribeCallRejected) unsubscribeCallRejected();
       if (unsubscribeCallEnded) unsubscribeCallEnded();
+      if (unsubscribeWebRTCOffer) unsubscribeWebRTCOffer();
+      if (unsubscribeWebRTCAnswer) unsubscribeWebRTCAnswer();
+      if (unsubscribeWebRTCCandidate) unsubscribeWebRTCCandidate();
     };
   }, [isConnected, on]);
+
+  const playRingtone = () => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
+      
+      // Set up repeating interval for ringtone
+      ringtoneIntervalRef.current = setInterval(() => {
+        if (ringtoneRef.current && incomingCall) {
+          ringtoneRef.current.currentTime = 0;
+          ringtoneRef.current.play().catch(e => console.log('Could not play ringtone:', e));
+        }
+      }, 3000); // Repeat every 3 seconds
+    }
+  };
 
   const stopRingtone = () => {
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
     }
+    
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+  };
+
+  const createPeerConnection = () => {
+    const config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    const peerConnection = new RTCPeerConnection(config);
+
+    // Handle remote stream
+    peerConnection.ontrack = (event) => {
+      console.log('Received remote stream');
+      const [remoteStream] = event.streams;
+      setRemoteStream(remoteStream);
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && currentCallId) {
+        console.log('Sending ICE candidate');
+        send('webrtc_candidate', {
+          callId: currentCallId,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log('Connection state:', peerConnection.connectionState);
+      if (peerConnection.connectionState === 'connected') {
+        setIsInCall(true);
+      } else if (peerConnection.connectionState === 'disconnected' || 
+                 peerConnection.connectionState === 'failed') {
+        resetCallState();
+      }
+    };
+
+    return peerConnection;
   };
 
   const resetCallState = () => {
+    console.log('Resetting call state');
+    stopRingtone();
+    
     setIsInCall(false);
     setIsInitiating(false);
     setIncomingCall(false);
@@ -218,6 +328,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setLocalAudioEnabled(true);
       setLocalVideoEnabled(type === 'video');
       
+      // Create peer connection and add local stream
+      const peerConnection = createPeerConnection();
+      peerConnectionRef.current = peerConnection;
+      
+      // Add local stream tracks to peer connection
+      stream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, stream);
+      });
+      
+      // Create offer
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      
       // Make API call to initiate call
       const response = await fetch('/api/calls/initiate', {
         method: 'POST',
@@ -231,6 +354,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
       });
       
       if (response.ok) {
+        // Send offer via WebSocket
+        send('webrtc_offer', {
+          callId,
+          offer,
+          targetUserId
+        });
+        
         toast({
           title: "Call initiated",
           description: `${type === 'video' ? 'Video' : 'Voice'} call started`,
@@ -239,6 +369,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to initiate call');
       }
     } catch (error) {
+      console.error('Call initiation error:', error);
       toast({
         title: "Call failed",
         description: "Unable to start call. Please check your microphone/camera permissions.",
@@ -268,6 +399,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setIncomingCall(false);
       setShowIncomingCall(false);
       
+      // Create peer connection and add local stream
+      const peerConnection = createPeerConnection();
+      peerConnectionRef.current = peerConnection;
+      
+      // Add local stream tracks to peer connection
+      stream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, stream);
+      });
+      
       // Call API to accept the call
       await fetch('/api/calls/answer', {
         method: 'POST',
@@ -285,6 +425,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         description: `${callType === 'video' ? 'Video' : 'Voice'} call connected`,
       });
     } catch (error) {
+      console.error('Call answer error:', error);
       toast({
         title: "Failed to answer call",
         description: "Please check your microphone/camera permissions.",
