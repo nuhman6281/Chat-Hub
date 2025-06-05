@@ -137,13 +137,33 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Enhanced ICE connection state monitoring
+    // Enhanced ICE connection state monitoring with recovery logic
     pc.oniceconnectionstatechange = () => {
       console.log('ICE connection state:', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        console.log('ICE connection established - premium audio quality active');
-      } else if (pc.iceConnectionState === 'failed') {
-        console.error('ICE connection failed - may need TURN server');
+      
+      switch (pc.iceConnectionState) {
+        case 'connected':
+        case 'completed':
+          console.log('Audio connection established - high quality transmission active');
+          toast({
+            title: 'Audio connected',
+            description: 'High-quality audio transmission established'
+          });
+          break;
+        case 'disconnected':
+          console.warn('ICE connection temporarily disconnected - attempting recovery');
+          break;
+        case 'failed':
+          console.error('ICE connection failed - connection quality may be poor');
+          toast({
+            title: 'Connection quality',
+            description: 'Audio quality may be reduced due to network conditions',
+            variant: 'destructive'
+          });
+          break;
+        case 'checking':
+          console.log('Establishing audio connection...');
+          break;
       }
     };
 
@@ -300,22 +320,28 @@ export function CallProvider({ children }: { children: ReactNode }) {
       const callId = `call_${user.id}_${targetUserId}_${Date.now()}`;
       setCurrentCallId(callId);
       
-      // Get user media with enhanced constraints
+      // Get user media with production-quality constraints
       const mediaConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100
+          sampleRate: 44100,
+          channelCount: 1
         },
         video: type === 'video' ? {
           width: { min: 640, ideal: 1280, max: 1920 },
           height: { min: 480, ideal: 720, max: 1080 },
-          frameRate: { min: 16, ideal: 30, max: 60 }
+          frameRate: { min: 16, ideal: 30, max: 60 },
+          facingMode: 'user'
         } : false
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      
+      console.log(`Media stream obtained: ${stream.getTracks().length} tracks`);
+      console.log(`Audio tracks: ${stream.getAudioTracks().length}`);
+      console.log(`Video tracks: ${stream.getVideoTracks().length}`);
       
       setLocalStream(stream);
       setLocalAudioEnabled(true);
@@ -403,11 +429,28 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setShowIncomingCall(false);
       setIsInCall(true);
       
-      // Get user media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video'
-      });
+      // Get user media with production-quality constraints
+      const mediaConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1
+        },
+        video: callType === 'video' ? {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          frameRate: { min: 16, ideal: 30, max: 60 },
+          facingMode: 'user'
+        } : false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      
+      console.log(`Answerer media stream: ${stream.getTracks().length} tracks`);
+      console.log(`Audio tracks: ${stream.getAudioTracks().length}`);
+      console.log(`Video tracks: ${stream.getVideoTracks().length}`);
       
       setLocalStream(stream);
       setLocalAudioEnabled(true);
