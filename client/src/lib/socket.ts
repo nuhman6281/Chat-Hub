@@ -22,7 +22,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
-  const handlersRef = useRef<Map<string, Set<SocketHandler>>>(new Map());
+  const handlersRef = useRef<Map<string, SocketHandler[]>>(new Map());
   
   // Initialize connection
   useEffect(() => {
@@ -52,13 +52,15 @@ export function useSocket() {
             
             // Call all registered handlers for this event type
             const handlers = handlersRef.current.get(type);
-            if (handlers) {
-              console.log(`Found ${handlers.size} handlers for event type: ${type}`);
-              let handlerIndex = 0;
-              handlers.forEach((handler) => {
-                handlerIndex++;
-                console.log(`Calling handler ${handlerIndex} for ${type}`);
-                handler(payload);
+            if (handlers && handlers.length > 0) {
+              console.log(`Found ${handlers.length} handlers for event type: ${type}`);
+              handlers.forEach((handler, index) => {
+                console.log(`Calling handler ${index + 1} for ${type}`);
+                try {
+                  handler(payload);
+                } catch (error) {
+                  console.error(`Error in handler ${index + 1} for ${type}:`, error);
+                }
               });
             } else {
               console.log(`No handlers found for event type: ${type}`);
@@ -108,10 +110,10 @@ export function useSocket() {
     };
   }, [reconnectAttempt]);
   
-  // Register event handlers with unique wrapper functions
+  // Register event handlers with array-based storage
   const on = useCallback((eventType: string, handler: SocketHandler) => {
     if (!handlersRef.current.has(eventType)) {
-      handlersRef.current.set(eventType, new Set());
+      handlersRef.current.set(eventType, []);
     }
     
     // Create a unique wrapper function for each registration
@@ -123,17 +125,20 @@ export function useSocket() {
       }
     }, { __handlerId: Math.random().toString(36).substr(2, 9) });
     
-    handlersRef.current.get(eventType)!.add(uniqueWrapper);
-    console.log(`Handler registered for ${eventType}, total handlers: ${handlersRef.current.get(eventType)!.size}`);
+    handlersRef.current.get(eventType)!.push(uniqueWrapper);
+    console.log(`Handler registered for ${eventType}, total handlers: ${handlersRef.current.get(eventType)!.length}`);
     
     // Return cleanup function that removes this specific wrapper
     return () => {
       const handlers = handlersRef.current.get(eventType);
-      if (handlers && handlers.has(uniqueWrapper)) {
-        handlers.delete(uniqueWrapper);
-        console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
-        if (handlers.size === 0) {
-          handlersRef.current.delete(eventType);
+      if (handlers) {
+        const index = handlers.indexOf(uniqueWrapper);
+        if (index > -1) {
+          handlers.splice(index, 1);
+          console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.length}`);
+          if (handlers.length === 0) {
+            handlersRef.current.delete(eventType);
+          }
         }
       }
     };
