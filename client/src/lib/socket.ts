@@ -108,40 +108,30 @@ export function useSocket() {
     };
   }, [reconnectAttempt]);
   
-  // Register event handlers with unique IDs to prevent conflicts
+  // Register event handlers with unique wrapper functions
   const on = useCallback((eventType: string, handler: SocketHandler) => {
     if (!handlersRef.current.has(eventType)) {
       handlersRef.current.set(eventType, new Set());
     }
     
-    // Create a unique wrapper for this handler to ensure proper Set behavior
-    const wrappedHandler = (payload: any) => {
+    // Create a unique wrapper function for each registration
+    const uniqueWrapper = Object.assign((payload: any) => {
       try {
         handler(payload);
       } catch (error) {
         console.error(`Error in handler for ${eventType}:`, error);
       }
-    };
+    }, { __handlerId: Math.random().toString(36).substr(2, 9) });
     
-    // Store the original handler reference for cleanup
-    (wrappedHandler as any).__originalHandler = handler;
-    
-    handlersRef.current.get(eventType)!.add(wrappedHandler);
+    handlersRef.current.get(eventType)!.add(uniqueWrapper);
     console.log(`Handler registered for ${eventType}, total handlers: ${handlersRef.current.get(eventType)!.size}`);
     
-    // Return cleanup function
+    // Return cleanup function that removes this specific wrapper
     return () => {
       const handlers = handlersRef.current.get(eventType);
-      if (handlers) {
-        // Find and remove the wrapped handler
-        const handlersArray = Array.from(handlers);
-        for (const h of handlersArray) {
-          if ((h as any).__originalHandler === handler) {
-            handlers.delete(h);
-            console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
-            break;
-          }
-        }
+      if (handlers && handlers.has(uniqueWrapper)) {
+        handlers.delete(uniqueWrapper);
+        console.log(`Handler cleaned up for ${eventType}, remaining handlers: ${handlers.size}`);
         if (handlers.size === 0) {
           handlersRef.current.delete(eventType);
         }
