@@ -88,18 +88,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   // Create WebRTC peer connection
   const createPeerConnection = () => {
-    console.log('Creating new RTCPeerConnection with STUN servers');
+    console.log('Creating new RTCPeerConnection with enhanced STUN servers');
     
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ],
+      iceCandidatePoolSize: 10
     });
 
-    // Handle remote stream
+    // Enhanced remote stream handling
     pc.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
+      console.log('Received remote track:', event.track.kind, event.track.label);
       const [stream] = event.streams;
       if (stream) {
         console.log('Setting remote stream with tracks:', stream.getTracks().length);
@@ -107,10 +109,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Handle ICE candidates
+    // Enhanced ICE candidate handling
     pc.onicecandidate = (event) => {
       if (event.candidate && currentCallId) {
-        console.log('Generated ICE candidate:', event.candidate.type, event.candidate.candidate);
+        console.log('Generated ICE candidate:', event.candidate.type, event.candidate.protocol);
         send('webrtc_candidate', {
           candidate: event.candidate,
           callId: currentCallId
@@ -120,14 +122,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Handle connection state changes
+    // Enhanced connection state monitoring
     pc.onconnectionstatechange = () => {
       console.log('WebRTC connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         console.log('WebRTC peer connection established successfully');
         toast({
           title: 'Call connected',
-          description: 'Audio transmission active'
+          description: 'High-quality audio transmission active'
         });
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         console.log('WebRTC connection failed');
@@ -135,17 +137,24 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Enhanced ICE connection state monitoring
     pc.oniceconnectionstatechange = () => {
       console.log('ICE connection state:', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'connected') {
-        console.log('✅ ICE connection established - audio should work now');
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log('ICE connection established - premium audio quality active');
       } else if (pc.iceConnectionState === 'failed') {
-        console.error('❌ ICE connection failed - audio will not work');
+        console.error('ICE connection failed - may need TURN server');
       }
     };
 
+    // ICE gathering state monitoring
     pc.onicegatheringstatechange = () => {
       console.log('ICE gathering state:', pc.iceGatheringState);
+    };
+
+    // Signaling state monitoring
+    pc.onsignalingstatechange = () => {
+      console.log('Signaling state:', pc.signalingState);
     };
 
     return pc;
@@ -291,11 +300,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
       const callId = `call_${user.id}_${targetUserId}_${Date.now()}`;
       setCurrentCallId(callId);
       
-      // Get user media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === 'video'
-      });
+      // Get user media with enhanced constraints
+      const mediaConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100
+        },
+        video: type === 'video' ? {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          frameRate: { min: 16, ideal: 30, max: 60 }
+        } : false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
       
       setLocalStream(stream);
       setLocalAudioEnabled(true);
@@ -311,10 +331,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
         pc.addTrack(track, stream);
       });
       
-      // Create offer
+      // Create offer with enhanced options
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: type === 'video'
+        offerToReceiveVideo: type === 'video',
+        iceRestart: false
       });
       
       await pc.setLocalDescription(offer);
