@@ -29,6 +29,8 @@ interface CallContextType {
   participants: CallParticipant[];
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  screenStream: MediaStream | null;
+  remoteScreenStream: MediaStream | null;
 
   // Actions
   initiateCall: (
@@ -41,6 +43,8 @@ interface CallContextType {
   endCall: () => void;
   toggleMute: () => void;
   toggleVideo: () => void;
+  startScreenShare: () => Promise<void>;
+  stopScreenShare: () => void;
 
   // UI state
   isMuted: boolean;
@@ -55,6 +59,9 @@ interface CallContextType {
   remoteAudioEnabled: boolean;
   remoteVideoEnabled: boolean;
   remoteUserInfo: { id: number; name: string } | null;
+  isScreenSharing: boolean;
+  remoteIsScreenSharing: boolean;
+  screenShareError: string | null;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -114,6 +121,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     id: number;
     name: string;
   } | null>(null);
+
+  // Screen sharing state
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [remoteScreenStream, setRemoteScreenStream] =
+    useState<MediaStream | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteIsScreenSharing, setRemoteIsScreenSharing] = useState(false);
+  const [screenShareError, setScreenShareError] = useState<string | null>(null);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   const [incomingCallOffer, setIncomingCallOffer] = useState<any>(null);
 
@@ -373,11 +388,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const handleWebRTCAnswer = (payload: any) => {
       console.log("WebRTC answer received:", payload);
       if (peerConnectionRef.current && payload.answer) {
-        peerConnectionRef.current
-          .setRemoteDescription(payload.answer)
-          .catch((error) =>
-            console.error("Error setting remote description:", error)
+        // Check if we're in the correct state to receive an answer
+        const signalingState = peerConnectionRef.current.signalingState;
+        console.log("Current signaling state:", signalingState);
+
+        if (signalingState === "have-local-offer") {
+          peerConnectionRef.current
+            .setRemoteDescription(new RTCSessionDescription(payload.answer))
+            .catch((error) =>
+              console.error("Error setting remote description:", error)
+            );
+        } else {
+          console.log(
+            "Ignoring duplicate or invalid answer - signaling state:",
+            signalingState
           );
+        }
       }
     };
 
@@ -396,6 +422,34 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const handleScreenShareStarted = (data: any) => {
+      console.log("🖥️ Remote user started screen sharing:", data);
+      const payload = data.payload || data;
+
+      setRemoteIsScreenSharing(true);
+
+      toast({
+        title: "Screen sharing",
+        description: `${
+          remoteUserInfo?.name || "Remote user"
+        } is sharing their screen`,
+      });
+    };
+
+    const handleScreenShareStopped = (data: any) => {
+      console.log("🖥️ Remote user stopped screen sharing:", data);
+      const payload = data.payload || data;
+
+      setRemoteIsScreenSharing(false);
+
+      toast({
+        title: "Screen sharing ended",
+        description: `${
+          remoteUserInfo?.name || "Remote user"
+        } stopped sharing their screen`,
+      });
+    };
+
     // Register event handlers
     const unsubscribeIncoming = on("incoming_call", handleIncomingCall);
     const unsubscribeAnswered = on("call_answered", handleCallAnswered);
@@ -403,6 +457,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const unsubscribeOffer = on("webrtc_offer", handleWebRTCOffer);
     const unsubscribeAnswer = on("webrtc_answer", handleWebRTCAnswer);
     const unsubscribeCandidate = on("webrtc_candidate", handleWebRTCCandidate);
+    const unsubscribeScreenShareStarted = on(
+      "screen_share_started",
+      handleScreenShareStarted
+    );
+    const unsubscribeScreenShareStopped = on(
+      "screen_share_stopped",
+      handleScreenShareStopped
+    );
 
     return () => {
       unsubscribeIncoming();
@@ -411,6 +473,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       unsubscribeOffer();
       unsubscribeAnswer();
       unsubscribeCandidate();
+      unsubscribeScreenShareStarted();
+      unsubscribeScreenShareStopped();
     };
   }, [isConnected, on, toast, user]); // CRITICAL: Added user dependency
 
@@ -478,6 +542,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setParticipants([]);
     setLocalStream(null);
     setRemoteStream(null);
+    setScreenStream(null);
+    setRemoteScreenStream(null);
     setIsMuted(false);
     setIsVideoEnabled(true);
     setShowIncomingCall(false);
@@ -490,6 +556,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setRemoteAudioEnabled(true);
     setRemoteVideoEnabled(true);
     setRemoteUserInfo(null);
+    setIsScreenSharing(false);
+    setRemoteIsScreenSharing(false);
+    setScreenShareError(null);
     setCurrentCallId(null);
     setIncomingCallOffer(null);
     stopRingtone();
@@ -852,6 +921,31 @@ export function CallProvider({ children }: { children: ReactNode }) {
       console.log("⚠️ No remote stream found during cleanup");
     }
 
+    // 3. Stop screen sharing streams
+    if (screenStream) {
+      console.log("🖥️ Stopping screen share tracks");
+      screenStream.getTracks().forEach((track) => {
+        console.log(
+          `🛑 Stopping screen share ${track.kind} track:`,
+          track.label
+        );
+        track.stop();
+        track.enabled = false; // Extra safety
+      });
+    }
+
+    if (remoteScreenStream) {
+      console.log("🖥️ Stopping remote screen share tracks");
+      remoteScreenStream.getTracks().forEach((track) => {
+        console.log(
+          `🛑 Stopping remote screen share ${track.kind} track:`,
+          track.id
+        );
+        track.stop();
+        track.enabled = false; // Extra safety
+      });
+    }
+
     // 3. Alternative cleanup: Get tracks directly from peer connection
     if (peerConnectionRef.current) {
       console.log("🔌 Cleaning up peer connection");
@@ -926,6 +1020,136 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Screen sharing functions
+  const startScreenShare = async () => {
+    try {
+      setScreenShareError(null);
+      console.log("🖥️ Starting screen share");
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        throw new Error("Screen sharing is not supported in this browser");
+      }
+
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 15, max: 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      setScreenStream(displayStream);
+      setIsScreenSharing(true);
+
+      // Replace video track in peer connection with screen share
+      if (peerConnectionRef.current) {
+        const videoTrack = displayStream.getVideoTracks()[0];
+        const sender = peerConnectionRef.current
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "video");
+
+        if (sender && videoTrack) {
+          await sender.replaceTrack(videoTrack);
+          console.log("🖥️ Replaced video track with screen share");
+        }
+
+        // Handle screen share ending
+        videoTrack.onended = () => {
+          console.log("🖥️ Screen share ended by user");
+          stopScreenShare();
+        };
+      }
+
+      // Notify remote user about screen sharing
+      if (send && currentCallId) {
+        send("screen_share_started", {
+          callId: currentCallId,
+          fromUserId: user?.id,
+        });
+      }
+
+      toast({
+        title: "Screen sharing started",
+        description: "You are now sharing your screen",
+      });
+    } catch (error) {
+      console.error("Error starting screen share:", error);
+      let errorMessage = "Failed to start screen sharing";
+
+      if (error instanceof Error) {
+        if (error.message.includes("Permission denied")) {
+          errorMessage = "Please allow screen sharing permission";
+        } else if (error.message.includes("not supported")) {
+          errorMessage = "Screen sharing is not supported in this browser";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      setScreenShareError(errorMessage);
+      toast({
+        title: "Screen sharing failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopScreenShare = async () => {
+    try {
+      console.log("🖥️ Stopping screen share");
+
+      if (screenStream) {
+        screenStream.getTracks().forEach((track) => {
+          console.log(`🛑 Stopping screen share ${track.kind} track`);
+          track.stop();
+        });
+      }
+
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      setScreenShareError(null);
+
+      // Replace screen share track back to camera
+      if (peerConnectionRef.current && localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        const sender = peerConnectionRef.current
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "video");
+
+        if (sender && videoTrack) {
+          await sender.replaceTrack(videoTrack);
+          console.log("🎥 Replaced screen share with camera video");
+        }
+      }
+
+      // Notify remote user that screen sharing stopped
+      if (send && currentCallId) {
+        send("screen_share_stopped", {
+          callId: currentCallId,
+          fromUserId: user?.id,
+        });
+      }
+
+      toast({
+        title: "Screen sharing stopped",
+        description: "You stopped sharing your screen",
+      });
+    } catch (error) {
+      console.error("Error stopping screen share:", error);
+      toast({
+        title: "Error",
+        description: "Failed to stop screen sharing",
+        variant: "destructive",
+      });
+    }
+  };
+
   const value: CallContextType = {
     // Call state
     isInCall,
@@ -934,6 +1158,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     participants,
     localStream,
     remoteStream,
+    screenStream,
+    remoteScreenStream,
 
     // Actions
     initiateCall,
@@ -942,6 +1168,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     endCall,
     toggleMute,
     toggleVideo,
+    startScreenShare,
+    stopScreenShare,
 
     // UI state
     isMuted,
@@ -956,6 +1184,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     remoteAudioEnabled,
     remoteVideoEnabled,
     remoteUserInfo,
+    isScreenSharing,
+    remoteIsScreenSharing,
+    screenShareError,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

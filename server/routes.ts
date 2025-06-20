@@ -305,6 +305,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
               );
             }
           });
+        } else if (data.type === "screen_share_started" && userId) {
+          // Handle screen sharing started
+          console.log("🖥️ Screen sharing started:", data.payload);
+
+          // Find the target user from the call participants
+          const callId = data.payload.callId;
+
+          // Broadcast to all participants in the call
+          clients.forEach((client) => {
+            if (
+              client.userId !== userId &&
+              client.ws.readyState === WebSocket.OPEN
+            ) {
+              client.ws.send(
+                JSON.stringify({
+                  type: "screen_share_started",
+                  payload: {
+                    ...data.payload,
+                    fromUserId: userId,
+                  },
+                })
+              );
+            }
+          });
+        } else if (data.type === "screen_share_stopped" && userId) {
+          // Handle screen sharing stopped
+          console.log("🖥️ Screen sharing stopped:", data.payload);
+
+          // Find the target user from the call participants
+          const callId = data.payload.callId;
+
+          // Broadcast to all participants in the call
+          clients.forEach((client) => {
+            if (
+              client.userId !== userId &&
+              client.ws.readyState === WebSocket.OPEN
+            ) {
+              client.ws.send(
+                JSON.stringify({
+                  type: "screen_share_stopped",
+                  payload: {
+                    ...data.payload,
+                    fromUserId: userId,
+                  },
+                })
+              );
+            }
+          });
         } else if (!userId) {
           ws.send(
             JSON.stringify({
