@@ -53,6 +53,7 @@ import {
   ScreenShareControls,
   ScreenShareOverlay,
 } from "@/components/ui/screen-share-controls";
+import ConnectionStatus from "@/components/ui/connection-status";
 
 // Enhanced participant component
 const ParticipantTile = ({
@@ -304,6 +305,12 @@ export function ActiveCallUI() {
     screenShareError,
     startScreenShare,
     stopScreenShare,
+    connectionState,
+    iceConnectionState,
+    isReconnecting,
+    lastConnectionError,
+    handleConnectionRecovery,
+    handleMediaStreamRecovery,
   } = useCall();
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -477,6 +484,16 @@ export function ActiveCallUI() {
                 <span className="text-sm font-mono">
                   {formatDuration(callDuration)}
                 </span>
+
+                {/* Connection Status */}
+                <ConnectionStatus
+                  connectionState={connectionState}
+                  iceConnectionState={iceConnectionState}
+                  isReconnecting={isReconnecting}
+                  lastConnectionError={lastConnectionError}
+                  className="bg-black/40 border border-white/20"
+                />
+
                 {isScreenSharing && (
                   <Badge
                     variant="default"
@@ -504,6 +521,47 @@ export function ActiveCallUI() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Connection Recovery Controls */}
+                {(connectionState === "failed" ||
+                  connectionState === "reconnecting") && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-white border-orange-500 hover:bg-orange-500/20"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Recovery
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleConnectionRecovery}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reconnect Call
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleMediaStreamRecovery("both")}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Reset Audio & Video
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleMediaStreamRecovery("video")}
+                      >
+                        <Video className="h-4 w-4 mr-2" />
+                        Reset Video Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleMediaStreamRecovery("audio")}
+                      >
+                        <Mic className="h-4 w-4 mr-2" />
+                        Reset Audio Only
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
                 <Button
                   variant="ghost"
                   size="icon"

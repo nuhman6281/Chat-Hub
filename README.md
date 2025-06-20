@@ -4,13 +4,59 @@ A real-time communication platform with end-to-end encryption, voice/video calls
 
 ## Features
 
-- 💬 Real-time messaging with channels and direct messages
-- 🔐 End-to-end encryption for secure communication
-- 🎥 Voice and video calling capabilities (WebRTC)
-- 👥 Workspace and channel management
-- 🔄 Real-time synchronization via WebSockets
-- 🎨 Modern UI built with React and Tailwind CSS
-- 📱 Responsive design for all devices
+### 💬 **Real-Time Communication**
+
+- Instant messaging with channels and direct messages
+- Real-time typing indicators and message status
+- File sharing and rich media support
+- End-to-end encryption for secure communication
+
+### 🎥 **Professional Video & Voice Calling**
+
+- High-quality WebRTC-based video and audio calls
+- **🖥️ Screen sharing with multiple capture options:**
+  - Entire screen capture
+  - Application window sharing
+  - Browser tab sharing
+  - Real-time screen share notifications
+- Industry-standard call controls (mute, video toggle, volume control)
+- Picture-in-picture mode with participant tiles
+- Speaker and gallery view modes
+- Call recording capabilities (UI ready)
+- Professional call UI matching Zoom/Teams standards
+
+### 🔧 **Advanced Call Features**
+
+- Intelligent video stream prioritization
+- Screen sharing takes precedence over regular video
+- Seamless track replacement without call interruption
+- Comprehensive error handling and recovery
+- Connection quality indicators
+- Real-time call duration tracking
+- Professional status indicators and badges
+
+### 👥 **Workspace Management**
+
+- Multi-workspace organization
+- Channel-based communication
+- User presence and status indicators
+- Role-based permissions
+
+### 🛡️ **Security & Reliability**
+
+- End-to-end encryption
+- Secure WebRTC connections with STUN servers
+- Comprehensive media cleanup and privacy protection
+- Automatic reconnection and failover mechanisms
+- HTTPS enforcement for production environments
+
+### 🎨 **Modern User Experience**
+
+- Beautiful, responsive UI built with React and Tailwind CSS
+- Professional dark theme with smooth animations
+- Accessibility-compliant components
+- Mobile-responsive design
+- Real-time visual feedback and notifications
 
 ## Quick Start with Docker
 
@@ -136,7 +182,102 @@ The application uses PostgreSQL with the following default settings:
 - **Username:** eventsentinel
 - **Password:** eventsentinel123
 
+## Screen Sharing & Video Calling
+
+### 🖥️ **Professional Screen Sharing**
+
+EventSentinel includes industry-standard screen sharing capabilities with comprehensive options:
+
+**Sharing Options:**
+
+- **Entire Screen**: Share everything on your display
+- **Application Window**: Share a specific application
+- **Browser Tab**: Share a single browser tab
+
+**Features:**
+
+- High-quality capture (up to 1920x1080, 30fps)
+- Audio capture with echo cancellation
+- Real-time participant notifications
+- Professional UI controls and status indicators
+- Seamless start/stop functionality
+
+**Screen Sharing Controls:**
+
+- Prominent screen share button in call controls
+- Professional dropdown with sharing options
+- Visual status indicators and overlays
+- Quick stop button for active shares
+- Error handling and recovery
+
+### 📞 **Video Calling Features**
+
+**Call Management:**
+
+- Initiate video/audio calls with one click
+- Professional incoming call interface
+- Real-time call status and duration
+- Connection quality indicators
+
+**Video Controls:**
+
+- Camera on/off toggle
+- Microphone mute/unmute
+- Speaker/gallery view modes
+- Picture-in-picture thumbnails
+- Volume control with slider
+
+**Advanced Features:**
+
+- Intelligent stream prioritization (screen share > video)
+- Seamless track replacement
+- Comprehensive cleanup and privacy protection
+- Auto-reconnection and error recovery
+
+### 🔧 **Technical Implementation**
+
+**WebRTC Architecture:**
+
+- STUN servers for NAT traversal
+- ICE candidate exchange
+- Secure peer-to-peer connections
+- Professional error handling
+
+**Media Management:**
+
+- Automatic track replacement for screen sharing
+- Comprehensive stream cleanup
+- Privacy-focused media handling
+- Cross-browser compatibility
+
+**State Management:**
+
+- React Context for call state
+- WebSocket for real-time signaling
+- Proper lifecycle management
+- Error recovery mechanisms
+
 ## Troubleshooting
+
+### Video Calling Issues
+
+**Camera/Microphone Access:**
+
+- Ensure browser permissions are granted
+- Use HTTPS for non-localhost access
+- Check device availability and settings
+
+**Screen Sharing Problems:**
+
+- Modern browser required (Chrome, Firefox, Safari)
+- Permission must be granted for screen capture
+- Some browsers may require HTTPS for screen sharing
+
+**Connection Issues:**
+
+- Check network connectivity
+- Firewall may block WebRTC traffic
+- STUN servers must be accessible
 
 ### Port 5000 Already in Use
 

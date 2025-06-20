@@ -45,6 +45,10 @@ interface CallContextType {
   toggleVideo: () => void;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => void;
+  handleConnectionRecovery: () => Promise<void>;
+  handleMediaStreamRecovery: (
+    type?: "video" | "audio" | "both"
+  ) => Promise<void>;
 
   // UI state
   isMuted: boolean;
@@ -62,6 +66,17 @@ interface CallContextType {
   isScreenSharing: boolean;
   remoteIsScreenSharing: boolean;
   screenShareError: string | null;
+
+  // Connection monitoring
+  connectionState:
+    | "disconnected"
+    | "connecting"
+    | "connected"
+    | "failed"
+    | "reconnecting";
+  iceConnectionState: string;
+  isReconnecting: boolean;
+  lastConnectionError: string | null;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -131,6 +146,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [screenShareError, setScreenShareError] = useState<string | null>(null);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   const [incomingCallOffer, setIncomingCallOffer] = useState<any>(null);
+
+  // Connection monitoring and recovery
+  const [connectionState, setConnectionState] = useState<
+    "disconnected" | "connecting" | "connected" | "failed" | "reconnecting"
+  >("disconnected");
+  const [iceConnectionState, setIceConnectionState] = useState<string>("new");
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [lastConnectionError, setLastConnectionError] = useState<string | null>(
+    null
+  );
 
   // WebRTC and audio management
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
@@ -252,37 +277,83 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     // Enhanced ICE connection state monitoring with recovery logic
     pc.oniceconnectionstatechange = () => {
-      console.log("ICE connection state:", pc.iceConnectionState);
+      const state = pc.iceConnectionState;
+      console.log("ICE connection state:", state);
+      setIceConnectionState(state);
 
-      switch (pc.iceConnectionState) {
+      switch (state) {
         case "connected":
         case "completed":
           console.log(
-            "Audio connection established - high quality transmission active"
+            "✅ ICE connection established - high quality transmission active"
           );
+          setConnectionState("connected");
+          setIsReconnecting(false);
+          setLastConnectionError(null);
+
           toast({
-            title: "Audio connected",
-            description: "High-quality audio transmission established",
+            title: "Call connected",
+            description: "High-quality connection established",
           });
           break;
+
+        case "checking":
+          console.log("🔍 Establishing connection...");
+          setConnectionState("connecting");
+          break;
+
         case "disconnected":
           console.warn(
-            "ICE connection temporarily disconnected - attempting recovery"
+            "⚠️ ICE connection temporarily disconnected - attempting recovery"
           );
-          break;
-        case "failed":
-          console.error(
-            "ICE connection failed - connection quality may be poor"
-          );
+          setConnectionState("reconnecting");
+          setIsReconnecting(true);
+
+          // Auto-recovery attempt after 3 seconds
+          setTimeout(() => {
+            if (
+              pc.iceConnectionState === "disconnected" &&
+              peerConnectionRef.current === pc
+            ) {
+              console.log("🔄 Attempting automatic ICE restart");
+              handleConnectionRecovery();
+            }
+          }, 3000);
+
           toast({
-            title: "Connection quality",
-            description:
-              "Audio quality may be reduced due to network conditions",
+            title: "Connection interrupted",
+            description: "Attempting to reconnect...",
             variant: "destructive",
           });
           break;
-        case "checking":
-          console.log("Establishing audio connection...");
+
+        case "failed":
+          console.error("❌ ICE connection failed - connection lost");
+          setConnectionState("failed");
+          setLastConnectionError(
+            "ICE connection failed - network issues detected"
+          );
+
+          toast({
+            title: "Connection Failed",
+            description:
+              "Call quality severely affected. Attempting recovery...",
+            variant: "destructive",
+          });
+
+          // Immediate recovery attempt for failed connections
+          handleConnectionRecovery();
+          break;
+
+        case "closed":
+          console.log("🔚 ICE connection closed");
+          setConnectionState("disconnected");
+          setIsReconnecting(false);
+          break;
+
+        case "new":
+          console.log("🆕 New ICE connection");
+          setConnectionState("connecting");
           break;
       }
     };
@@ -298,6 +369,116 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     return pc;
+  };
+
+  // Connection recovery handler
+  const handleConnectionRecovery = async () => {
+    console.log("🔄 Starting connection recovery process");
+
+    if (!peerConnectionRef.current || !currentCallId) {
+      console.log("❌ Cannot recover - no active peer connection or call");
+      return;
+    }
+
+    try {
+      setIsReconnecting(true);
+      setConnectionState("reconnecting");
+
+      // Create new ICE restart offer
+      const offer = await peerConnectionRef.current.createOffer({
+        iceRestart: true,
+      });
+      await peerConnectionRef.current.setLocalDescription(offer);
+
+      // Send recovery offer
+      if (send) {
+        send("webrtc_offer", {
+          offer,
+          callId: currentCallId,
+          targetUserId: user?.id,
+          isRecovery: true,
+        });
+        console.log("📡 Sent recovery offer with ICE restart");
+      }
+
+      toast({
+        title: "Reconnecting...",
+        description: "Attempting to restore call connection",
+      });
+    } catch (error) {
+      console.error("❌ Connection recovery failed:", error);
+      setLastConnectionError("Recovery attempt failed");
+      setConnectionState("failed");
+
+      toast({
+        title: "Connection Recovery Failed",
+        description:
+          "Unable to restore connection. You may need to restart the call.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Media stream recovery handler
+  const handleMediaStreamRecovery = async (
+    type: "video" | "audio" | "both" = "both"
+  ) => {
+    console.log(`🔄 Starting media stream recovery for: ${type}`);
+
+    try {
+      const constraints: MediaStreamConstraints = {};
+
+      if (type === "video" || type === "both") {
+        constraints.video = {
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+        };
+      }
+
+      if (type === "audio" || type === "both") {
+        constraints.audio = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        };
+      }
+
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      setLocalStream(newStream);
+
+      // Replace tracks in peer connection
+      if (peerConnectionRef.current) {
+        for (const track of newStream.getTracks()) {
+          const sender = peerConnectionRef.current
+            .getSenders()
+            .find((s) => s.track && s.track.kind === track.kind);
+
+          if (sender) {
+            await sender.replaceTrack(track);
+            console.log(`✅ Replaced ${track.kind} track successfully`);
+          } else {
+            peerConnectionRef.current.addTrack(track, newStream);
+            console.log(`✅ Added new ${track.kind} track`);
+          }
+        }
+      }
+
+      toast({
+        title: "Media Restored",
+        description: `${
+          type === "both" ? "Audio and video" : type
+        } connection restored`,
+      });
+    } catch (error) {
+      console.error(`❌ Media stream recovery failed for ${type}:`, error);
+
+      toast({
+        title: "Media Recovery Failed",
+        description: `Unable to restore ${type}. Please check your device permissions.`,
+        variant: "destructive",
+      });
+    }
   };
 
   // WebSocket event handlers
@@ -380,28 +561,113 @@ export function CallProvider({ children }: { children: ReactNode }) {
       endCall();
     };
 
-    const handleWebRTCOffer = (payload: any) => {
-      console.log("WebRTC offer received:", payload);
-      setIncomingCallOffer(payload.offer);
+    const handleWebRTCOffer = async (payload: any) => {
+      console.log("🔄 CallContext: WebRTC offer received:", payload);
+
+      if (payload.isRecovery && peerConnectionRef.current) {
+        console.log("🔄 Processing recovery offer");
+
+        try {
+          // Handle recovery offer for existing connection
+          await peerConnectionRef.current.setRemoteDescription(payload.offer);
+
+          // Create recovery answer
+          const answer = await peerConnectionRef.current.createAnswer();
+          await peerConnectionRef.current.setLocalDescription(answer);
+
+          // Send recovery answer
+          if (send && currentCallId) {
+            send("webrtc_answer", {
+              answer,
+              callId: currentCallId,
+              targetUserId: payload.fromUserId,
+              isRecovery: true,
+            });
+          }
+
+          toast({
+            title: "Connection Recovery",
+            description: "Attempting to restore call connection",
+          });
+        } catch (error) {
+          console.error("❌ Failed to handle recovery offer:", error);
+
+          toast({
+            title: "Recovery Failed",
+            description:
+              "Could not restore connection. Call may need to be restarted.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        // Store the offer for normal call flow (handled in answerCall)
+        setIncomingCallOffer(payload.offer);
+      }
     };
 
     const handleWebRTCAnswer = (payload: any) => {
-      console.log("WebRTC answer received:", payload);
-      if (peerConnectionRef.current && payload.answer) {
-        // Check if we're in the correct state to receive an answer
-        const signalingState = peerConnectionRef.current.signalingState;
-        console.log("Current signaling state:", signalingState);
+      console.log("🔄 WebRTC answer received:", payload);
+      const { answer, isRecovery } = payload;
 
-        if (signalingState === "have-local-offer") {
+      if (!peerConnectionRef.current || !answer) {
+        console.log("❌ No peer connection or answer available");
+        return;
+      }
+
+      const currentState = peerConnectionRef.current.signalingState;
+      console.log("Current signaling state:", currentState);
+
+      if (isRecovery) {
+        console.log("🔄 Processing recovery answer");
+
+        // For recovery, we can accept answers in different states
+        if (currentState === "have-local-offer" || currentState === "stable") {
           peerConnectionRef.current
-            .setRemoteDescription(new RTCSessionDescription(payload.answer))
-            .catch((error) =>
-              console.error("Error setting remote description:", error)
-            );
+            .setRemoteDescription(new RTCSessionDescription(answer))
+            .then(() => {
+              console.log("✅ Recovery answer processed successfully");
+              setConnectionState("connected");
+              setIsReconnecting(false);
+              setLastConnectionError(null);
+
+              toast({
+                title: "Connection Restored",
+                description: "Call connection has been successfully recovered",
+              });
+            })
+            .catch((error) => {
+              console.error("❌ Error processing recovery answer:", error);
+              setConnectionState("failed");
+              setLastConnectionError("Recovery answer processing failed");
+
+              toast({
+                title: "Recovery Failed",
+                description: "Unable to process recovery response",
+                variant: "destructive",
+              });
+            });
+        } else {
+          console.log(`❌ Invalid state for recovery answer: ${currentState}`);
+        }
+      } else {
+        // Normal answer processing
+        if (currentState === "have-local-offer") {
+          console.log("📡 Setting remote description with answer");
+          peerConnectionRef.current
+            .setRemoteDescription(new RTCSessionDescription(answer))
+            .then(() => {
+              console.log("✅ Remote description set successfully");
+              setConnectionState("connected");
+              setLastConnectionError(null);
+            })
+            .catch((error) => {
+              console.error("❌ Error setting remote description:", error);
+              setConnectionState("failed");
+              setLastConnectionError("Failed to process call answer");
+            });
         } else {
           console.log(
-            "Ignoring duplicate or invalid answer - signaling state:",
-            signalingState
+            `⚠️ Ignoring duplicate or invalid answer - current state: ${currentState}`
           );
         }
       }
@@ -442,12 +708,45 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
       setRemoteIsScreenSharing(false);
 
-      toast({
-        title: "Screen sharing ended",
-        description: `${
-          remoteUserInfo?.name || "Remote user"
-        } stopped sharing their screen`,
-      });
+      // Check if remote user has camera fallback
+      const hasCameraFallback = payload.fallbackToCamera;
+
+      if (hasCameraFallback) {
+        toast({
+          title: "Screen sharing ended",
+          description: `${
+            remoteUserInfo?.name || "Remote user"
+          } switched back to camera`,
+        });
+      } else {
+        toast({
+          title: "Screen sharing ended",
+          description: `${
+            remoteUserInfo?.name || "Remote user"
+          } stopped sharing and camera is off`,
+        });
+      }
+
+      // If no camera fallback and no video tracks, show message
+      setTimeout(() => {
+        if (
+          !remoteStream
+            ?.getVideoTracks()
+            .some((track) => track.enabled && track.readyState === "live")
+        ) {
+          console.log(
+            "⚠️ Remote user has no active video after screen share stop"
+          );
+
+          if (!hasCameraFallback) {
+            toast({
+              title: "No video from remote user",
+              description: "Remote user's camera appears to be disabled",
+              variant: "destructive",
+            });
+          }
+        }
+      }, 2000);
     };
 
     // Register event handlers
@@ -536,6 +835,38 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   const resetCallState = () => {
+    console.log("🔄 Resetting all call state");
+
+    // Stop all media tracks and streams
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        console.log(`🛑 Stopping local ${track.kind} track`);
+        track.stop();
+      });
+    }
+
+    if (remoteStream) {
+      remoteStream.getTracks().forEach((track) => {
+        console.log(`🛑 Stopping remote ${track.kind} track`);
+        track.stop();
+      });
+    }
+
+    if (screenStream) {
+      screenStream.getTracks().forEach((track) => {
+        console.log(`🛑 Stopping screen share ${track.kind} track`);
+        track.stop();
+      });
+    }
+
+    // Clean up peer connection
+    if (peerConnectionRef.current) {
+      console.log("🔌 Closing peer connection");
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    // Reset all call state
     setIsInCall(false);
     setIsInitiating(false);
     setCallType(null);
@@ -561,13 +892,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setScreenShareError(null);
     setCurrentCallId(null);
     setIncomingCallOffer(null);
+
+    // Reset connection monitoring state
+    setConnectionState("disconnected");
+    setIceConnectionState("new");
+    setIsReconnecting(false);
+    setLastConnectionError(null);
+
     stopRingtone();
 
-    // Clean up peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
+    console.log("✅ Call state reset complete");
   };
 
   // Call functions
@@ -1102,49 +1436,122 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const stopScreenShare = async () => {
     try {
-      console.log("🖥️ Stopping screen share");
+      console.log("🖥️ Stopping screen share - starting comprehensive fallback");
 
+      // Step 1: Stop screen share tracks
       if (screenStream) {
         screenStream.getTracks().forEach((track) => {
           console.log(`🛑 Stopping screen share ${track.kind} track`);
           track.stop();
+          track.enabled = false;
         });
       }
 
+      // Step 2: Reset screen sharing state immediately
       setScreenStream(null);
       setIsScreenSharing(false);
       setScreenShareError(null);
 
-      // Replace screen share track back to camera
-      if (peerConnectionRef.current && localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        const sender = peerConnectionRef.current
-          .getSenders()
-          .find((s) => s.track && s.track.kind === "video");
+      // Step 3: Ensure we have a working camera stream
+      let cameraStream = localStream;
 
-        if (sender && videoTrack) {
-          await sender.replaceTrack(videoTrack);
-          console.log("🎥 Replaced screen share with camera video");
+      // If no local stream or no video track, recreate it
+      if (!cameraStream || cameraStream.getVideoTracks().length === 0) {
+        console.log("🎥 Recreating camera stream for fallback");
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280, max: 1920 },
+              height: { ideal: 720, max: 1080 },
+              frameRate: { ideal: 30, max: 60 },
+            },
+            audio: true,
+          });
+          setLocalStream(cameraStream);
+          console.log("✅ Camera stream recreated successfully");
+        } catch (mediaError) {
+          console.error("❌ Failed to recreate camera stream:", mediaError);
+          // Fallback to audio-only
+          try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: false,
+            });
+            setLocalStream(cameraStream);
+            console.log("🔊 Fallback to audio-only stream");
+          } catch (audioError) {
+            console.error("❌ Failed to get even audio stream:", audioError);
+          }
         }
       }
 
-      // Notify remote user that screen sharing stopped
+      // Step 4: Replace track in peer connection
+      if (peerConnectionRef.current && cameraStream) {
+        const videoTrack = cameraStream.getVideoTracks()[0];
+        const audioTrack = cameraStream.getAudioTracks()[0];
+
+        // Replace video track if available
+        if (videoTrack) {
+          const videoSender = peerConnectionRef.current
+            .getSenders()
+            .find((s) => s.track && s.track.kind === "video");
+
+          if (videoSender) {
+            await videoSender.replaceTrack(videoTrack);
+            console.log(
+              "✅ Successfully replaced screen share with camera video"
+            );
+          } else {
+            // Add video track if no sender exists
+            peerConnectionRef.current.addTrack(videoTrack, cameraStream);
+            console.log("✅ Added camera video track to peer connection");
+          }
+        }
+
+        // Ensure audio track is properly connected
+        if (audioTrack) {
+          const audioSender = peerConnectionRef.current
+            .getSenders()
+            .find((s) => s.track && s.track.kind === "audio");
+
+          if (!audioSender) {
+            peerConnectionRef.current.addTrack(audioTrack, cameraStream);
+            console.log("✅ Added audio track to peer connection");
+          }
+        }
+      }
+
+      // Step 5: Notify remote user with proper payload structure
       if (send && currentCallId) {
         send("screen_share_stopped", {
           callId: currentCallId,
           fromUserId: user?.id,
+          fallbackToCamera: !!cameraStream?.getVideoTracks()[0],
         });
       }
 
+      // Step 6: User feedback
+      const hasVideo = cameraStream?.getVideoTracks()[0]?.enabled;
       toast({
         title: "Screen sharing stopped",
-        description: "You stopped sharing your screen",
+        description: hasVideo
+          ? "Switched back to camera view"
+          : "Switched to audio-only mode",
       });
+
+      console.log("✅ Screen share stop completed with successful fallback");
     } catch (error) {
-      console.error("Error stopping screen share:", error);
+      console.error("❌ Error stopping screen share:", error);
+
+      // Emergency fallback - reset everything
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      setScreenShareError(null);
+
       toast({
-        title: "Error",
-        description: "Failed to stop screen sharing",
+        title: "Screen sharing stopped",
+        description:
+          "There was an issue switching back to camera. Please check your video settings.",
         variant: "destructive",
       });
     }
@@ -1170,6 +1577,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     toggleVideo,
     startScreenShare,
     stopScreenShare,
+    handleConnectionRecovery,
+    handleMediaStreamRecovery,
 
     // UI state
     isMuted,
@@ -1187,6 +1596,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
     isScreenSharing,
     remoteIsScreenSharing,
     screenShareError,
+
+    // Connection monitoring
+    connectionState,
+    iceConnectionState,
+    isReconnecting,
+    lastConnectionError,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

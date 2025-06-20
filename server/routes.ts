@@ -240,12 +240,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             broadcastToDirectMessage(data.directMessageId, typingData);
           }
         } else if (data.type === "webrtc_offer" && userId) {
-          // Handle WebRTC offer
-          console.log("WebRTC offer received:", data.payload);
+          // Handle WebRTC offer (including recovery offers)
+          const isRecovery = data.payload.isRecovery;
+          console.log(
+            `${
+              isRecovery ? "🔄 WebRTC recovery" : "📡 WebRTC"
+            } offer received:`,
+            data.payload
+          );
+
           const targetUserId = data.payload.targetUserId;
           const targetClients = clients.filter(
             (client) => client.userId === targetUserId
           );
+
+          if (targetClients.length === 0) {
+            console.log(`⚠️ No target clients found for user ${targetUserId}`);
+            // Send error back to sender
+            ws.send(
+              JSON.stringify({
+                type: "webrtc_error",
+                payload: {
+                  error: "Target user not connected",
+                  callId: data.payload.callId,
+                },
+              })
+            );
+            return;
+          }
 
           targetClients.forEach((client) => {
             if (client.ws.readyState === WebSocket.OPEN) {
@@ -255,8 +277,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   payload: {
                     ...data.payload,
                     fromUserId: userId,
+                    isRecovery: isRecovery,
                   },
                 })
+              );
+              console.log(
+                `✅ ${
+                  isRecovery ? "Recovery offer" : "Offer"
+                } forwarded to user ${targetUserId}`
+              );
+            } else {
+              console.log(
+                `❌ Target client connection is not open for user ${targetUserId}`
               );
             }
           });
@@ -685,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Workspaces API error:", error);
         res.status(500).json({
           message: "Failed to fetch workspaces",
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -1928,11 +1960,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = (req.user as any).id;
         const { emoji } = req.body;
 
-        // In a real implementation, update message reactions in database
-        // For now, broadcast the reaction via WebSocket
-        // Message retrieval functionality will be implemented when needed
+        // Get the message to verify access and broadcast to correct channel/DM
+        const message = await storage.getMessageById(messageId);
         if (!message) {
           return res.status(404).json({ message: "Message not found" });
+        }
+
+        // Verify user has access to this message
+        if (message.channelId) {
+          const hasAccess = await storage.isUserInChannel(
+            userId,
+            message.channelId
+          );
+          if (!hasAccess) {
+            return res.status(403).json({ message: "Access denied" });
+          }
+        } else if (message.directMessageId) {
+          const dm = await storage.getDirectMessage(message.directMessageId);
+          if (!dm || (dm.user1Id !== userId && dm.user2Id !== userId)) {
+            return res.status(403).json({ message: "Access denied" });
+          }
         }
 
         // Broadcast reaction to appropriate channel or DM
