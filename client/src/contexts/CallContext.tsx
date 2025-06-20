@@ -414,6 +414,50 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
   }, [isConnected, on, toast, user]); // CRITICAL: Added user dependency
 
+  // Component unmount cleanup - Ultimate safety net for resource management
+  useEffect(() => {
+    return () => {
+      console.log(
+        "🧹 CallProvider component unmounting - performing emergency cleanup"
+      );
+
+      // Stop all local stream tracks
+      if (localStream) {
+        console.log("🎥 Emergency stopping local stream tracks");
+        localStream.getTracks().forEach((track) => {
+          console.log(
+            `🛑 Emergency stopping ${track.kind} track:`,
+            track.label
+          );
+          track.stop();
+          track.enabled = false;
+        });
+      }
+
+      // Stop all remote stream tracks
+      if (remoteStream) {
+        console.log("📺 Emergency stopping remote stream tracks");
+        remoteStream.getTracks().forEach((track) => {
+          console.log(
+            `🛑 Emergency stopping remote ${track.kind} track:`,
+            track.label
+          );
+          track.stop();
+          track.enabled = false;
+        });
+      }
+
+      // Close peer connection
+      if (peerConnectionRef.current) {
+        console.log("🔌 Emergency closing peer connection");
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+
+      console.log("✅ Emergency cleanup completed");
+    };
+  }, []); // Empty dependency array - only run on component unmount
+
   // Ringtone management
   const stopRingtone = () => {
     if (ringtoneRef.current) {
@@ -748,7 +792,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   const rejectCall = () => {
-    console.log("Rejecting call");
+    console.log("❌ Rejecting call");
 
     if (currentCallId) {
       fetch("/api/calls/hangup", {
@@ -770,7 +814,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   const endCall = () => {
-    console.log("Ending call");
+    console.log("🔚 Ending call - starting comprehensive cleanup");
 
     if (currentCallId) {
       fetch("/api/calls/hangup", {
@@ -782,15 +826,75 @@ export function CallProvider({ children }: { children: ReactNode }) {
       }).catch(console.error);
     }
 
-    // Stop local stream
+    // COMPREHENSIVE MEDIA CLEANUP - BEFORE state reset
+
+    // 1. Stop all local stream tracks
     if (localStream) {
+      console.log("🎥 Stopping local stream tracks");
       localStream.getTracks().forEach((track) => {
-        console.log("Stopping local track:", track.kind);
+        console.log(`🛑 Stopping local ${track.kind} track:`, track.label);
         track.stop();
+        track.enabled = false; // Extra safety
       });
+    } else {
+      console.log("⚠️ No local stream found during cleanup");
     }
 
+    // 2. Stop all remote stream tracks
+    if (remoteStream) {
+      console.log("📺 Stopping remote stream tracks");
+      remoteStream.getTracks().forEach((track) => {
+        console.log(`🛑 Stopping remote ${track.kind} track:`, track.label);
+        track.stop();
+        track.enabled = false; // Extra safety
+      });
+    } else {
+      console.log("⚠️ No remote stream found during cleanup");
+    }
+
+    // 3. Alternative cleanup: Get tracks directly from peer connection
+    if (peerConnectionRef.current) {
+      console.log("🔌 Cleaning up peer connection");
+
+      // Get and stop all tracks from peer connection senders
+      const senders = peerConnectionRef.current.getSenders();
+      senders.forEach((sender) => {
+        if (sender.track) {
+          console.log(
+            `🗑️ Stopping and removing ${sender.track.kind} track from peer connection:`,
+            sender.track.label
+          );
+          sender.track.stop(); // Stop the track
+          sender.track.enabled = false; // Disable the track
+          peerConnectionRef.current?.removeTrack(sender);
+        }
+      });
+
+      // Get and stop all tracks from peer connection receivers
+      const receivers = peerConnectionRef.current.getReceivers();
+      receivers.forEach((receiver) => {
+        if (receiver.track) {
+          console.log(
+            `🗑️ Stopping ${receiver.track.kind} track from receiver:`,
+            receiver.track.id
+          );
+          receiver.track.stop(); // Stop the track
+          receiver.track.enabled = false; // Disable the track
+        }
+      });
+
+      // Close the peer connection
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+      console.log("✅ Peer connection closed and nullified");
+    } else {
+      console.log("⚠️ No peer connection found during cleanup");
+    }
+
+    // 4. Reset call state (this will clean up UI state)
     resetCallState();
+
+    console.log("✅ Call ended - comprehensive cleanup completed");
 
     toast({
       title: "Call ended",
