@@ -1,15 +1,34 @@
-import { 
-  users, workspaces, channels, messages, directMessages, 
-  workspaceMembers, channelMembers, messageReactions, fileUploads,
-  type User, type InsertUser,
-  type Workspace, type InsertWorkspace,
-  type Channel, type InsertChannel,
-  type Message, type InsertMessage, type MessageWithUser,
-  type DirectMessage, type InsertDirectMessage, type DirectMessageWithUser,
-  type WorkspaceMember, type InsertWorkspaceMember,
-  type ChannelMember, type InsertChannelMember,
-  type ChannelWithMemberCount, type MessageReaction, type InsertMessageReaction,
-  type FileUpload, type InsertFileUpload
+import {
+  users,
+  workspaces,
+  channels,
+  messages,
+  directMessages,
+  workspaceMembers,
+  channelMembers,
+  messageReactions,
+  fileUploads,
+  type User,
+  type InsertUser,
+  type Workspace,
+  type InsertWorkspace,
+  type Channel,
+  type InsertChannel,
+  type Message,
+  type InsertMessage,
+  type MessageWithUser,
+  type DirectMessage,
+  type InsertDirectMessage,
+  type DirectMessageWithUser,
+  type WorkspaceMember,
+  type InsertWorkspaceMember,
+  type ChannelMember,
+  type InsertChannelMember,
+  type ChannelWithMemberCount,
+  type MessageReaction,
+  type InsertMessageReaction,
+  type FileUpload,
+  type InsertFileUpload,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
@@ -37,27 +56,38 @@ export interface IStorage {
   // Channel operations
   createChannel(channel: InsertChannel): Promise<Channel>;
   getChannel(id: number): Promise<Channel | undefined>;
-  getChannelsByWorkspaceId(workspaceId: number): Promise<ChannelWithMemberCount[]>;
+  getChannelsByWorkspaceId(
+    workspaceId: number
+  ): Promise<ChannelWithMemberCount[]>;
 
   // Message operations
   createMessage(message: InsertMessage): Promise<MessageWithUser>;
   getMessagesByChannelId(channelId: number): Promise<MessageWithUser[]>;
-  getMessagesByDirectMessageId(directMessageId: number): Promise<MessageWithUser[]>;
+  getMessagesByDirectMessageId(
+    directMessageId: number
+  ): Promise<MessageWithUser[]>;
 
   // Direct Message operations
   createDirectMessage(dm: InsertDirectMessage): Promise<DirectMessage>;
   getDirectMessage(id: number): Promise<DirectMessage | undefined>;
-  getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessage | undefined>;
+  getDirectMessageByUserIds(
+    user1Id: number,
+    user2Id: number
+  ): Promise<DirectMessage | undefined>;
   getDirectMessagesByUserId(userId: number): Promise<DirectMessageWithUser[]>;
 
   // Workspace membership operations
   addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
-  getWorkspaceMembersByWorkspaceId(workspaceId: number): Promise<(WorkspaceMember & { user: User })[]>;
+  getWorkspaceMembersByWorkspaceId(
+    workspaceId: number
+  ): Promise<(WorkspaceMember & { user: User })[]>;
   isUserInWorkspace(userId: number, workspaceId: number): Promise<boolean>;
 
   // Channel membership operations
   addChannelMember(member: InsertChannelMember): Promise<ChannelMember>;
-  getChannelMembersByChannelId(channelId: number): Promise<(ChannelMember & { user: User })[]>;
+  getChannelMembersByChannelId(
+    channelId: number
+  ): Promise<(ChannelMember & { user: User })[]>;
   isUserInChannel(userId: number, channelId: number): Promise<boolean>;
 
   // Search operations
@@ -65,13 +95,19 @@ export interface IStorage {
 
   // Message reactions
   addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction>;
-  getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]>;
-  removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean>;
-  
+  getMessageReactions(
+    messageId: number
+  ): Promise<(MessageReaction & { user: User })[]>;
+  removeMessageReaction(
+    messageId: number,
+    userId: number,
+    emoji: string
+  ): Promise<boolean>;
+
   // Thread messages
   getThreadMessages(parentMessageId: number): Promise<MessageWithUser[]>;
   updateThreadCount(messageId: number, count: number): Promise<void>;
-  
+
   // Search messages
   searchMessages(query: string, userId: number): Promise<MessageWithUser[]>;
 
@@ -130,7 +166,7 @@ export class MemStorage implements IStorage {
       displayName: "Demo User",
       status: "online",
       avatarUrl: null,
-      publicKey: null
+      publicKey: null,
     };
     this.users.set(1, seedUser);
 
@@ -139,7 +175,7 @@ export class MemStorage implements IStorage {
       name: "Demo Workspace",
       ownerId: 1,
       iconText: "DW",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     this.workspaces.set(1, seedWorkspace);
 
@@ -147,7 +183,7 @@ export class MemStorage implements IStorage {
       id: 1,
       userId: 1,
       workspaceId: 1,
-      role: "owner"
+      role: "owner",
     };
     this.workspaceMembers.set(1, membership);
 
@@ -157,14 +193,14 @@ export class MemStorage implements IStorage {
       workspaceId: 1,
       description: null,
       isPrivate: false,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     this.channels.set(1, generalChannel);
 
     const channelMember: ChannelMember = {
       id: 1,
       userId: 1,
-      channelId: 1
+      channelId: 1,
     };
     this.channelMembers.set(1, channelMember);
   }
@@ -174,23 +210,28 @@ export class MemStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.username === username);
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username
+    );
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userId++;
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
+      ...insertUser,
       id,
-      status: 'online',
+      status: "online",
       avatarUrl: null,
-      publicKey: null
+      publicKey: null,
     };
     this.users.set(id, user);
     return user;
   }
 
-  async updateUserStatus(id: number, status: string): Promise<User | undefined> {
+  async updateUserStatus(
+    id: number,
+    status: string
+  ): Promise<User | undefined> {
     const user = this.users.get(id);
     if (user) {
       user.status = status;
@@ -199,7 +240,10 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async updateUserPublicKey(id: number, publicKey: string): Promise<User | undefined> {
+  async updateUserPublicKey(
+    id: number,
+    publicKey: string
+  ): Promise<User | undefined> {
     const user = this.users.get(id);
     if (user) {
       user.publicKey = publicKey;
@@ -222,8 +266,8 @@ export class MemStorage implements IStorage {
 
   async getWorkspacesByUserId(userId: number): Promise<Workspace[]> {
     const userWorkspaces = Array.from(this.workspaceMembers.values())
-      .filter(member => member.userId === userId)
-      .map(member => this.workspaces.get(member.workspaceId))
+      .filter((member) => member.userId === userId)
+      .map((member) => this.workspaces.get(member.workspaceId))
       .filter((workspace): workspace is Workspace => workspace !== undefined);
     return userWorkspaces;
   }
@@ -231,13 +275,13 @@ export class MemStorage implements IStorage {
   async createChannel(insertChannel: InsertChannel): Promise<Channel> {
     const id = this.channelId++;
     const now = new Date();
-    const channel: Channel = { 
-      id, 
+    const channel: Channel = {
+      id,
       name: insertChannel.name,
       workspaceId: insertChannel.workspaceId,
       description: insertChannel.description || null,
       isPrivate: insertChannel.isPrivate || false,
-      createdAt: now
+      createdAt: now,
     };
     this.channels.set(id, channel);
     return channel;
@@ -247,13 +291,17 @@ export class MemStorage implements IStorage {
     return this.channels.get(id);
   }
 
-  async getChannelsByWorkspaceId(workspaceId: number): Promise<ChannelWithMemberCount[]> {
-    const workspaceChannels = Array.from(this.channels.values())
-      .filter(channel => channel.workspaceId === workspaceId);
+  async getChannelsByWorkspaceId(
+    workspaceId: number
+  ): Promise<ChannelWithMemberCount[]> {
+    const workspaceChannels = Array.from(this.channels.values()).filter(
+      (channel) => channel.workspaceId === workspaceId
+    );
 
-    return workspaceChannels.map(channel => {
-      const memberCount = Array.from(this.channelMembers.values())
-        .filter(member => member.channelId === channel.id).length;
+    return workspaceChannels.map((channel) => {
+      const memberCount = Array.from(this.channelMembers.values()).filter(
+        (member) => member.channelId === channel.id
+      ).length;
       return { ...channel, memberCount };
     });
   }
@@ -261,15 +309,15 @@ export class MemStorage implements IStorage {
   async createMessage(insertMessage: InsertMessage): Promise<MessageWithUser> {
     const id = this.messageId++;
     const now = new Date();
-    
-    const message: Message = { 
+
+    const message: Message = {
       id,
       content: insertMessage.content,
       userId: insertMessage.userId,
       channelId: insertMessage.channelId || null,
       directMessageId: insertMessage.directMessageId || null,
       createdAt: now,
-      messageType: insertMessage.messageType || 'text',
+      messageType: insertMessage.messageType || "text",
       mediaUrl: insertMessage.mediaUrl || null,
       mediaType: insertMessage.mediaType || null,
       mediaSize: insertMessage.mediaSize || null,
@@ -281,11 +329,11 @@ export class MemStorage implements IStorage {
       isEncrypted: insertMessage.isEncrypted || false,
       encryptedContent: insertMessage.encryptedContent || null,
       nonce: insertMessage.nonce || null,
-      senderPublicKey: insertMessage.senderPublicKey || null
+      senderPublicKey: insertMessage.senderPublicKey || null,
     };
-    
+
     this.messages.set(id, message);
-    
+
     const user = await this.getUser(message.userId);
     if (!user) {
       throw new Error(`User with id ${message.userId} not found`);
@@ -311,7 +359,7 @@ export class MemStorage implements IStorage {
       encryptedContent: message.encryptedContent,
       nonce: message.nonce,
       senderPublicKey: message.senderPublicKey,
-      user
+      user,
     };
   }
 
@@ -345,13 +393,15 @@ export class MemStorage implements IStorage {
           encryptedContent: message.encryptedContent,
           nonce: message.nonce,
           senderPublicKey: message.senderPublicKey,
-          user
+          user,
         };
       })
     );
   }
 
-  async getMessagesByDirectMessageId(directMessageId: number): Promise<MessageWithUser[]> {
+  async getMessagesByDirectMessageId(
+    directMessageId: number
+  ): Promise<MessageWithUser[]> {
     const messages = Array.from(this.messages.values())
       .filter((message) => message.directMessageId === directMessageId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -381,13 +431,15 @@ export class MemStorage implements IStorage {
           encryptedContent: message.encryptedContent,
           nonce: message.nonce,
           senderPublicKey: message.senderPublicKey,
-          user
+          user,
         };
       })
     );
   }
 
-  async createDirectMessage(insertDM: InsertDirectMessage): Promise<DirectMessage> {
+  async createDirectMessage(
+    insertDM: InsertDirectMessage
+  ): Promise<DirectMessage> {
     const id = this.directMessageId++;
     const now = new Date();
     const dm: DirectMessage = { ...insertDM, id, createdAt: now };
@@ -399,24 +451,28 @@ export class MemStorage implements IStorage {
     return this.directMessages.get(id);
   }
 
-  async getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessageWithUser | undefined> {
-    const dm = Array.from(this.directMessages.values()).find(dm => 
-      (dm.user1Id === user1Id && dm.user2Id === user2Id) ||
-      (dm.user1Id === user2Id && dm.user2Id === user1Id)
+  async getDirectMessageByUserIds(
+    user1Id: number,
+    user2Id: number
+  ): Promise<DirectMessageWithUser | undefined> {
+    const dm = Array.from(this.directMessages.values()).find(
+      (dm) =>
+        (dm.user1Id === user1Id && dm.user2Id === user2Id) ||
+        (dm.user1Id === user2Id && dm.user2Id === user1Id)
     );
-    
+
     if (!dm) return undefined;
-    
+
     // Determine the other user
     const otherUserId = dm.user1Id === user1Id ? dm.user2Id : dm.user1Id;
     const otherUser = await this.getUser(otherUserId);
-    
+
     if (!otherUser) {
       throw new Error(`User with id ${otherUserId} not found`);
     }
 
     const lastMessage = Array.from(this.messages.values())
-      .filter(msg => msg.directMessageId === dm.id)
+      .filter((msg) => msg.directMessageId === dm.id)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
     let lastMessageWithUser;
@@ -442,7 +498,7 @@ export class MemStorage implements IStorage {
           encryptedContent: lastMessage.encryptedContent,
           nonce: lastMessage.nonce,
           senderPublicKey: lastMessage.senderPublicKey,
-          user: lastMessageUser
+          user: lastMessageUser,
         };
       }
     }
@@ -459,27 +515,30 @@ export class MemStorage implements IStorage {
         status: otherUser.status,
         avatarUrl: otherUser.avatarUrl,
         password: otherUser.password,
-        publicKey: otherUser.publicKey
+        publicKey: otherUser.publicKey,
       },
-      lastMessage: lastMessageWithUser
+      lastMessage: lastMessageWithUser,
     };
   }
 
-  async getDirectMessagesByUserId(userId: number): Promise<DirectMessageWithUser[]> {
-    const userDMs = Array.from(this.directMessages.values())
-      .filter(dm => dm.user1Id === userId || dm.user2Id === userId);
+  async getDirectMessagesByUserId(
+    userId: number
+  ): Promise<DirectMessageWithUser[]> {
+    const userDMs = Array.from(this.directMessages.values()).filter(
+      (dm) => dm.user1Id === userId || dm.user2Id === userId
+    );
 
     return Promise.all(
       userDMs.map(async (dm) => {
         const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
         const otherUser = await this.getUser(otherUserId);
-        
+
         if (!otherUser) {
           throw new Error(`User with id ${otherUserId} not found`);
         }
 
         const lastMessage = Array.from(this.messages.values())
-          .filter(msg => msg.directMessageId === dm.id)
+          .filter((msg) => msg.directMessageId === dm.id)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
         let lastMessageWithUser;
@@ -506,7 +565,7 @@ export class MemStorage implements IStorage {
               encryptedContent: lastMessage.encryptedContent,
               nonce: lastMessage.nonce,
               senderPublicKey: lastMessage.senderPublicKey,
-              user: lastMessageUser
+              user: lastMessageUser,
             };
           }
         }
@@ -514,26 +573,31 @@ export class MemStorage implements IStorage {
         return {
           ...dm,
           otherUser,
-          lastMessage: lastMessageWithUser
+          lastMessage: lastMessageWithUser,
         };
       })
     );
   }
 
-  async addWorkspaceMember(insertMember: InsertWorkspaceMember): Promise<WorkspaceMember> {
+  async addWorkspaceMember(
+    insertMember: InsertWorkspaceMember
+  ): Promise<WorkspaceMember> {
     const id = this.workspaceMemberId++;
-    const member: WorkspaceMember = { 
-      ...insertMember, 
+    const member: WorkspaceMember = {
+      ...insertMember,
       id,
-      role: insertMember.role || 'member'
+      role: insertMember.role || "member",
     };
     this.workspaceMembers.set(id, member);
     return member;
   }
 
-  async getWorkspaceMembersByWorkspaceId(workspaceId: number): Promise<(WorkspaceMember & { user: User })[]> {
-    const members = Array.from(this.workspaceMembers.values())
-      .filter(member => member.workspaceId === workspaceId);
+  async getWorkspaceMembersByWorkspaceId(
+    workspaceId: number
+  ): Promise<(WorkspaceMember & { user: User })[]> {
+    const members = Array.from(this.workspaceMembers.values()).filter(
+      (member) => member.workspaceId === workspaceId
+    );
 
     return Promise.all(
       members.map(async (member) => {
@@ -546,21 +610,30 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async isUserInWorkspace(userId: number, workspaceId: number): Promise<boolean> {
-    return Array.from(this.workspaceMembers.values())
-      .some(member => member.userId === userId && member.workspaceId === workspaceId);
+  async isUserInWorkspace(
+    userId: number,
+    workspaceId: number
+  ): Promise<boolean> {
+    return Array.from(this.workspaceMembers.values()).some(
+      (member) => member.userId === userId && member.workspaceId === workspaceId
+    );
   }
 
-  async addChannelMember(insertMember: InsertChannelMember): Promise<ChannelMember> {
+  async addChannelMember(
+    insertMember: InsertChannelMember
+  ): Promise<ChannelMember> {
     const id = this.channelMemberId++;
     const member: ChannelMember = { ...insertMember, id };
     this.channelMembers.set(id, member);
     return member;
   }
 
-  async getChannelMembersByChannelId(channelId: number): Promise<(ChannelMember & { user: User })[]> {
-    const members = Array.from(this.channelMembers.values())
-      .filter(member => member.channelId === channelId);
+  async getChannelMembersByChannelId(
+    channelId: number
+  ): Promise<(ChannelMember & { user: User })[]> {
+    const members = Array.from(this.channelMembers.values()).filter(
+      (member) => member.channelId === channelId
+    );
 
     return Promise.all(
       members.map(async (member) => {
@@ -574,44 +647,56 @@ export class MemStorage implements IStorage {
   }
 
   async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
-    return Array.from(this.channelMembers.values())
-      .some(member => member.userId === userId && member.channelId === channelId);
+    return Array.from(this.channelMembers.values()).some(
+      (member) => member.userId === userId && member.channelId === channelId
+    );
   }
 
   async searchUsers(searchTerm: string): Promise<User[]> {
-    return Array.from(this.users.values())
-      .filter(user => 
+    return Array.from(this.users.values()).filter(
+      (user) =>
         user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.displayName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    );
   }
 
-  async addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction> {
+  async addMessageReaction(
+    reaction: InsertMessageReaction
+  ): Promise<MessageReaction> {
     const id = this.messageReactionId++;
     const newReaction: MessageReaction = {
       ...reaction,
       id,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     this.messageReactions.set(id, newReaction);
     return newReaction;
   }
 
-  async getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]> {
-    const reactions = Array.from(this.messageReactions.values())
-      .filter(reaction => reaction.messageId === messageId);
-    
-    return reactions.map(reaction => {
+  async getMessageReactions(
+    messageId: number
+  ): Promise<(MessageReaction & { user: User })[]> {
+    const reactions = Array.from(this.messageReactions.values()).filter(
+      (reaction) => reaction.messageId === messageId
+    );
+
+    return reactions.map((reaction) => {
       const user = this.users.get(reaction.userId);
       if (!user) throw new Error(`User with id ${reaction.userId} not found`);
       return { ...reaction, user };
     });
   }
 
-  async removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean> {
-    const reaction = Array.from(this.messageReactions.values())
-      .find(r => r.messageId === messageId && r.userId === userId && r.emoji === emoji);
-    
+  async removeMessageReaction(
+    messageId: number,
+    userId: number,
+    emoji: string
+  ): Promise<boolean> {
+    const reaction = Array.from(this.messageReactions.values()).find(
+      (r) =>
+        r.messageId === messageId && r.userId === userId && r.emoji === emoji
+    );
+
     if (reaction) {
       this.messageReactions.delete(reaction.id);
       return true;
@@ -624,7 +709,7 @@ export class MemStorage implements IStorage {
     const newFile: FileUpload = {
       ...file,
       id,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     this.fileUploads.set(id, newFile);
     return newFile;
@@ -637,22 +722,24 @@ export class MemStorage implements IStorage {
   async getMessageById(id: number): Promise<MessageWithUser | undefined> {
     const message = this.messages.get(id);
     if (!message) return undefined;
-    
+
     const user = this.users.get(message.userId);
     if (!user) return undefined;
-    
+
     return { ...message, user };
   }
 
   async getThreadMessages(parentMessageId: number): Promise<MessageWithUser[]> {
     const threadMessages = Array.from(this.messages.values())
-      .filter(message => message.threadId === parentMessageId)
+      .filter((message) => message.threadId === parentMessageId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-    const messagesWithUsers = threadMessages.map(message => {
-      const user = this.users.get(message.userId);
-      return user ? { ...message, user } : null;
-    }).filter((message): message is MessageWithUser => message !== null);
+    const messagesWithUsers = threadMessages
+      .map((message) => {
+        const user = this.users.get(message.userId);
+        return user ? { ...message, user } : null;
+      })
+      .filter((message): message is MessageWithUser => message !== null);
 
     return messagesWithUsers;
   }
@@ -664,50 +751,60 @@ export class MemStorage implements IStorage {
     }
   }
 
-  async searchMessages(query: string, userId: number): Promise<MessageWithUser[]> {
+  async searchMessages(
+    query: string,
+    userId: number
+  ): Promise<MessageWithUser[]> {
     const normalizedQuery = query.toLowerCase().trim();
     if (!normalizedQuery) return [];
 
     // Get all messages the user has access to
     const userWorkspaces = Array.from(this.workspaceMembers.values())
-      .filter(member => member.userId === userId)
-      .map(member => member.workspaceId);
+      .filter((member) => member.userId === userId)
+      .map((member) => member.workspaceId);
 
     const userChannels = Array.from(this.channelMembers.values())
-      .filter(member => member.userId === userId)
-      .map(member => member.channelId);
+      .filter((member) => member.userId === userId)
+      .map((member) => member.channelId);
 
     const userDirectMessages = Array.from(this.directMessages.values())
-      .filter(dm => dm.user1Id === userId || dm.user2Id === userId)
-      .map(dm => dm.id);
+      .filter((dm) => dm.user1Id === userId || dm.user2Id === userId)
+      .map((dm) => dm.id);
 
     const searchResults = Array.from(this.messages.values())
-      .filter(message => {
+      .filter((message) => {
         // Check access permissions
-        const hasChannelAccess = message.channelId && userChannels.includes(message.channelId);
-        const hasDMAccess = message.directMessageId && userDirectMessages.includes(message.directMessageId);
-        
+        const hasChannelAccess =
+          message.channelId && userChannels.includes(message.channelId);
+        const hasDMAccess =
+          message.directMessageId &&
+          userDirectMessages.includes(message.directMessageId);
+
         if (!hasChannelAccess && !hasDMAccess) return false;
 
         // Search in content
-        const contentMatch = message.content.toLowerCase().includes(normalizedQuery);
-        
+        const contentMatch = message.content
+          .toLowerCase()
+          .includes(normalizedQuery);
+
         // Search in user names
         const user = this.users.get(message.userId);
-        const userMatch = user && (
-          user.displayName.toLowerCase().includes(normalizedQuery) ||
-          user.username.toLowerCase().includes(normalizedQuery)
-        );
+        const userMatch =
+          user &&
+          (user.displayName.toLowerCase().includes(normalizedQuery) ||
+            user.username.toLowerCase().includes(normalizedQuery));
 
         return contentMatch || userMatch;
       })
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, 50); // Limit results
 
-    const messagesWithUsers = searchResults.map(message => {
-      const user = this.users.get(message.userId);
-      return user ? { ...message, user } : null;
-    }).filter((message): message is MessageWithUser => message !== null);
+    const messagesWithUsers = searchResults
+      .map((message) => {
+        const user = this.users.get(message.userId);
+        return user ? { ...message, user } : null;
+      })
+      .filter((message): message is MessageWithUser => message !== null);
 
     return messagesWithUsers;
   }
@@ -730,19 +827,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
     return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
-  async updateUserStatus(id: number, status: string): Promise<User | undefined> {
+  async updateUserStatus(
+    id: number,
+    status: string
+  ): Promise<User | undefined> {
     const [user] = await db
       .update(users)
       .set({ status })
@@ -751,7 +851,10 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async updateUserPublicKey(id: number, publicKey: string): Promise<User | undefined> {
+  async updateUserPublicKey(
+    id: number,
+    publicKey: string
+  ): Promise<User | undefined> {
     const [user] = await db
       .update(users)
       .set({ publicKey })
@@ -769,7 +872,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getWorkspace(id: number): Promise<Workspace | undefined> {
-    const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+    const [workspace] = await db
+      .select()
+      .from(workspaces)
+      .where(eq(workspaces.id, id));
     return workspace || undefined;
   }
 
@@ -777,10 +883,13 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({ workspace: workspaces })
       .from(workspaces)
-      .innerJoin(workspaceMembers, eq(workspaces.id, workspaceMembers.workspaceId))
+      .innerJoin(
+        workspaceMembers,
+        eq(workspaces.id, workspaceMembers.workspaceId)
+      )
       .where(eq(workspaceMembers.userId, userId));
 
-    return result.map(r => r.workspace);
+    return result.map((r) => r.workspace);
   }
 
   async createChannel(insertChannel: InsertChannel): Promise<Channel> {
@@ -792,22 +901,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getChannel(id: number): Promise<Channel | undefined> {
-    const [channel] = await db.select().from(channels).where(eq(channels.id, id));
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, id));
     return channel || undefined;
   }
 
-  async getChannelsByWorkspaceId(workspaceId: number): Promise<ChannelWithMemberCount[]> {
+  async getChannelsByWorkspaceId(
+    workspaceId: number
+  ): Promise<ChannelWithMemberCount[]> {
     const result = await db
       .select({
         channel: channels,
-        memberCount: sql<number>`count(${channelMembers.id})`.as('memberCount')
+        memberCount: sql<number>`count(${channelMembers.id})`.as("memberCount"),
       })
       .from(channels)
       .leftJoin(channelMembers, eq(channels.id, channelMembers.channelId))
       .where(eq(channels.workspaceId, workspaceId))
       .groupBy(channels.id);
 
-    return result.map(r => ({ ...r.channel, memberCount: r.memberCount }));
+    return result.map((r) => ({ ...r.channel, memberCount: r.memberCount }));
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<MessageWithUser> {
@@ -832,10 +946,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.channelId, channelId))
       .orderBy(messages.createdAt);
 
-    return result.map(r => ({ ...r.message, user: r.user }));
+    return result.map((r) => ({ ...r.message, user: r.user }));
   }
 
-  async getMessagesByDirectMessageId(directMessageId: number): Promise<MessageWithUser[]> {
+  async getMessagesByDirectMessageId(
+    directMessageId: number
+  ): Promise<MessageWithUser[]> {
     const result = await db
       .select({ message: messages, user: users })
       .from(messages)
@@ -843,46 +959,64 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.directMessageId, directMessageId))
       .orderBy(messages.createdAt);
 
-    return result.map(r => ({ ...r.message, user: r.user }));
+    return result.map((r) => ({ ...r.message, user: r.user }));
   }
 
-  async createDirectMessage(insertDM: InsertDirectMessage): Promise<DirectMessage> {
-    const [dm] = await db
-      .insert(directMessages)
-      .values(insertDM)
-      .returning();
+  async createDirectMessage(
+    insertDM: InsertDirectMessage
+  ): Promise<DirectMessage> {
+    const [dm] = await db.insert(directMessages).values(insertDM).returning();
     return dm;
   }
 
   async getDirectMessage(id: number): Promise<DirectMessage | undefined> {
-    const [dm] = await db.select().from(directMessages).where(eq(directMessages.id, id));
+    const [dm] = await db
+      .select()
+      .from(directMessages)
+      .where(eq(directMessages.id, id));
     return dm || undefined;
   }
 
-  async getDirectMessageByUserIds(user1Id: number, user2Id: number): Promise<DirectMessage | undefined> {
+  async getDirectMessageByUserIds(
+    user1Id: number,
+    user2Id: number
+  ): Promise<DirectMessage | undefined> {
     const [dm] = await db
       .select()
       .from(directMessages)
       .where(
         or(
-          and(eq(directMessages.user1Id, user1Id), eq(directMessages.user2Id, user2Id)),
-          and(eq(directMessages.user1Id, user2Id), eq(directMessages.user2Id, user1Id))
+          and(
+            eq(directMessages.user1Id, user1Id),
+            eq(directMessages.user2Id, user2Id)
+          ),
+          and(
+            eq(directMessages.user1Id, user2Id),
+            eq(directMessages.user2Id, user1Id)
+          )
         )
       );
     return dm || undefined;
   }
 
-  async getDirectMessagesByUserId(userId: number): Promise<DirectMessageWithUser[]> {
+  async getDirectMessagesByUserId(
+    userId: number
+  ): Promise<DirectMessageWithUser[]> {
     const dms = await db
       .select()
       .from(directMessages)
-      .where(or(eq(directMessages.user1Id, userId), eq(directMessages.user2Id, userId)));
+      .where(
+        or(
+          eq(directMessages.user1Id, userId),
+          eq(directMessages.user2Id, userId)
+        )
+      );
 
     return Promise.all(
       dms.map(async (dm) => {
         const otherUserId = dm.user1Id === userId ? dm.user2Id : dm.user1Id;
         const otherUser = await this.getUser(otherUserId);
-        
+
         if (!otherUser) {
           throw new Error(`User with id ${otherUserId} not found`);
         }
@@ -900,13 +1034,17 @@ export class DatabaseStorage implements IStorage {
         return {
           ...dm,
           otherUser,
-          lastMessage: lastMessage ? { ...lastMessage.message, user: lastMessage.user } : undefined
+          lastMessage: lastMessage
+            ? { ...lastMessage.message, user: lastMessage.user }
+            : undefined,
         };
       })
     );
   }
 
-  async addWorkspaceMember(insertMember: InsertWorkspaceMember): Promise<WorkspaceMember> {
+  async addWorkspaceMember(
+    insertMember: InsertWorkspaceMember
+  ): Promise<WorkspaceMember> {
     const [member] = await db
       .insert(workspaceMembers)
       .values(insertMember)
@@ -914,25 +1052,37 @@ export class DatabaseStorage implements IStorage {
     return member;
   }
 
-  async getWorkspaceMembersByWorkspaceId(workspaceId: number): Promise<(WorkspaceMember & { user: User })[]> {
+  async getWorkspaceMembersByWorkspaceId(
+    workspaceId: number
+  ): Promise<(WorkspaceMember & { user: User })[]> {
     const result = await db
       .select({ member: workspaceMembers, user: users })
       .from(workspaceMembers)
       .innerJoin(users, eq(workspaceMembers.userId, users.id))
       .where(eq(workspaceMembers.workspaceId, workspaceId));
 
-    return result.map(r => ({ ...r.member, user: r.user }));
+    return result.map((r) => ({ ...r.member, user: r.user }));
   }
 
-  async isUserInWorkspace(userId: number, workspaceId: number): Promise<boolean> {
+  async isUserInWorkspace(
+    userId: number,
+    workspaceId: number
+  ): Promise<boolean> {
     const [member] = await db
       .select()
       .from(workspaceMembers)
-      .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.workspaceId, workspaceId)));
+      .where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId)
+        )
+      );
     return !!member;
   }
 
-  async addChannelMember(insertMember: InsertChannelMember): Promise<ChannelMember> {
+  async addChannelMember(
+    insertMember: InsertChannelMember
+  ): Promise<ChannelMember> {
     const [member] = await db
       .insert(channelMembers)
       .values(insertMember)
@@ -940,21 +1090,28 @@ export class DatabaseStorage implements IStorage {
     return member;
   }
 
-  async getChannelMembersByChannelId(channelId: number): Promise<(ChannelMember & { user: User })[]> {
+  async getChannelMembersByChannelId(
+    channelId: number
+  ): Promise<(ChannelMember & { user: User })[]> {
     const result = await db
       .select({ member: channelMembers, user: users })
       .from(channelMembers)
       .innerJoin(users, eq(channelMembers.userId, users.id))
       .where(eq(channelMembers.channelId, channelId));
 
-    return result.map(r => ({ ...r.member, user: r.user }));
+    return result.map((r) => ({ ...r.member, user: r.user }));
   }
 
   async isUserInChannel(userId: number, channelId: number): Promise<boolean> {
     const [member] = await db
       .select()
       .from(channelMembers)
-      .where(and(eq(channelMembers.userId, userId), eq(channelMembers.channelId, channelId)));
+      .where(
+        and(
+          eq(channelMembers.userId, userId),
+          eq(channelMembers.channelId, channelId)
+        )
+      );
     return !!member;
   }
 
@@ -970,7 +1127,9 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  async addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction> {
+  async addMessageReaction(
+    reaction: InsertMessageReaction
+  ): Promise<MessageReaction> {
     const [newReaction] = await db
       .insert(messageReactions)
       .values(reaction)
@@ -978,16 +1137,22 @@ export class DatabaseStorage implements IStorage {
     return newReaction;
   }
 
-  async getMessageReactions(messageId: number): Promise<(MessageReaction & { user: User })[]> {
+  async getMessageReactions(
+    messageId: number
+  ): Promise<(MessageReaction & { user: User })[]> {
     const result = await db
       .select({ reaction: messageReactions, user: users })
       .from(messageReactions)
       .innerJoin(users, eq(messageReactions.userId, users.id))
       .where(eq(messageReactions.messageId, messageId));
-    return result.map(r => ({ ...r.reaction, user: r.user }));
+    return result.map((r) => ({ ...r.reaction, user: r.user }));
   }
 
-  async removeMessageReaction(messageId: number, userId: number, emoji: string): Promise<boolean> {
+  async removeMessageReaction(
+    messageId: number,
+    userId: number,
+    emoji: string
+  ): Promise<boolean> {
     const result = await db
       .delete(messageReactions)
       .where(
@@ -1002,10 +1167,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createFileUpload(file: InsertFileUpload): Promise<FileUpload> {
-    const [newFile] = await db
-      .insert(fileUploads)
-      .values(file)
-      .returning();
+    const [newFile] = await db.insert(fileUploads).values(file).returning();
     return newFile;
   }
 
@@ -1023,9 +1185,9 @@ export class DatabaseStorage implements IStorage {
       .from(messages)
       .innerJoin(users, eq(messages.userId, users.id))
       .where(eq(messages.id, id));
-    
+
     if (result.length === 0) return undefined;
-    
+
     const { message, user } = result[0];
     return { ...message, user };
   }
@@ -1038,7 +1200,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.threadId, threadId))
       .orderBy(messages.createdAt);
 
-    return result.map(r => ({ ...r.message, user: r.user }));
+    return result.map((r) => ({ ...r.message, user: r.user }));
   }
 
   async updateThreadCount(messageId: number, count: number): Promise<void> {
@@ -1048,7 +1210,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.id, messageId));
   }
 
-  async searchMessages(query: string, userId: number): Promise<MessageWithUser[]> {
+  async searchMessages(
+    query: string,
+    userId: number
+  ): Promise<MessageWithUser[]> {
     const result = await db
       .select({ message: messages, user: users })
       .from(messages)
@@ -1065,10 +1230,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`${messages.createdAt} DESC`)
       .limit(50);
 
-    return result.map(r => ({ ...r.message, user: r.user }));
+    return result.map((r) => ({ ...r.message, user: r.user }));
   }
 }
 
 // Use database storage for persistence
 export const storage = new DatabaseStorage();
-console.log('Using DatabaseStorage with PostgreSQL persistence');
+console.log("Using DatabaseStorage with PostgreSQL persistence");

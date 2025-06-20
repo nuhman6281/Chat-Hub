@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: eventsentinel-postgres
+    environment:
+      POSTGRES_USER: eventsentinel
+      POSTGRES_PASSWORD: eventsentinel123
+      POSTGRES_DB: eventsentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventsentinel -d eventsentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

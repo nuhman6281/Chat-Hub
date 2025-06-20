@@ -9,8 +9,10 @@ import jwt from "jsonwebtoken";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
-const JWT_SECRET = process.env.JWT_SECRET || "chat-app-super-secret-key-for-development";
-const SESSION_SECRET = process.env.SESSION_SECRET || "chat-app-session-secret-key";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "chat-app-super-secret-key-for-development";
+const SESSION_SECRET =
+  process.env.SESSION_SECRET || "chat-app-session-secret-key";
 
 // Define the User type for Express
 declare global {
@@ -23,13 +25,17 @@ declare global {
       displayName: string;
       status: string;
       avatarUrl?: string | null;
+      publicKey?: string | null;
     }
   }
 }
 
 const PostgresSessionStore = connectPg(session);
 
-export async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+export async function comparePasswords(
+  supplied: string,
+  stored: string
+): Promise<boolean> {
   return await bcrypt.compare(supplied, stored);
 }
 
@@ -37,19 +43,21 @@ export function generateToken(user: User): string {
   // Ensure avatarUrl is either a string or null, not undefined
   const sanitizedUser = {
     ...user,
-    avatarUrl: user.avatarUrl || null
+    avatarUrl: user.avatarUrl || null,
   };
-  
+
   return jwt.sign(
     { id: sanitizedUser.id, username: sanitizedUser.username },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" }
   );
 }
 
-export function verifyToken(token: string): { id: number, username: string } | null {
+export function verifyToken(
+  token: string
+): { id: number; username: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: number, username: string };
+    return jwt.verify(token, JWT_SECRET) as { id: number; username: string };
   } catch (error) {
     return null;
   }
@@ -66,11 +74,11 @@ export function setupAuth(app: Express) {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
-    store: storage.sessionStore
+    store: storage.sessionStore,
   };
 
   app.use(session(sessionOptions));
-  
+
   // Initialize passport middleware
   app.use(passport.initialize());
   app.use(passport.session());
@@ -112,12 +120,12 @@ export function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const { username, password, displayName } = req.body;
-      
+
       // Validate input
       if (!username || !password || !displayName) {
         return res.status(400).json({
           success: false,
-          message: "Username, password, and display name are required"
+          message: "Username, password, and display name are required",
         });
       }
 
@@ -126,7 +134,7 @@ export function setupAuth(app: Express) {
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: "Username already exists"
+          message: "Username already exists",
         });
       }
 
@@ -139,7 +147,7 @@ export function setupAuth(app: Express) {
         password: hashedPassword,
         displayName,
         status: "online",
-        avatarUrl: null // Explicitly set to null
+        avatarUrl: null, // Explicitly set to null
       });
 
       // Create a default workspace for the new user
@@ -147,14 +155,14 @@ export function setupAuth(app: Express) {
         name: `${displayName}'s Workspace`,
         ownerId: user.id,
         iconText: displayName.charAt(0).toUpperCase(),
-        iconColor: "#3b82f6"
+        iconColor: "#3b82f6",
       });
 
       // Add user as admin to their workspace
       await storage.addWorkspaceMember({
         workspaceId: workspace.id,
         userId: user.id,
-        role: 'admin'
+        role: "admin",
       });
 
       // Create a general channel in the workspace
@@ -162,19 +170,19 @@ export function setupAuth(app: Express) {
         name: "general",
         workspaceId: workspace.id,
         createdBy: user.id,
-        isPrivate: false
+        isPrivate: false,
       });
 
       // Add user to the general channel
       await storage.addChannelMember({
         channelId: channel.id,
-        userId: user.id
+        userId: user.id,
       });
 
       // Ensure avatarUrl is properly set to null if undefined
       const sanitizedUser = {
         ...user,
-        avatarUrl: user.avatarUrl || null
+        avatarUrl: user.avatarUrl || null,
       };
 
       // Log the user in
@@ -182,7 +190,7 @@ export function setupAuth(app: Express) {
         if (err) {
           return res.status(500).json({
             success: false,
-            message: "Error logging in after registration"
+            message: "Error logging in after registration",
           });
         }
 
@@ -197,65 +205,95 @@ export function setupAuth(app: Express) {
             username: user.username,
             displayName: user.displayName,
             status: user.status,
-            avatarUrl: user.avatarUrl
+            avatarUrl: user.avatarUrl,
           },
-          token
+          token,
         });
       });
     } catch (error) {
+      // Filter out unrelated WebSocket errors from browser extensions
+      if (
+        error &&
+        typeof error === "object" &&
+        "target" in error &&
+        error.target &&
+        typeof error.target === "object" &&
+        "_url" in error.target &&
+        error.target._url &&
+        typeof error.target._url === "string" &&
+        error.target._url.includes("/v2")
+      ) {
+        console.log(
+          "Ignoring unrelated WebSocket error from browser extension"
+        );
+        return;
+      }
+
       console.error("Registration error:", error);
+      if (error instanceof Error) {
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+        });
+      }
       res.status(500).json({
         success: false,
-        message: "Error registering user"
+        message: "Error registering user",
       });
     }
   });
 
   // Login endpoint
-  app.post("/api/auth/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err: any, user: Express.User, info: { message?: string }) => {
-      if (err) {
-        return next(err);
-      }
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: info?.message || "Invalid credentials"
-        });
-      }
+  app.post(
+    "/api/auth/login",
+    (req: Request, res: Response, next: NextFunction) => {
+      passport.authenticate(
+        "local",
+        (err: any, user: Express.User, info: { message?: string }) => {
+          if (err) {
+            return next(err);
+          }
+          if (!user) {
+            return res.status(401).json({
+              success: false,
+              message: info?.message || "Invalid credentials",
+            });
+          }
 
-      // Ensure avatarUrl is properly set to either string or null
-      const sanitizedUser = {
-        ...user,
-        avatarUrl: user.avatarUrl || null,
-        publicKey: user.publicKey || null
-      };
-      
-      req.login(sanitizedUser, (err) => {
-        if (err) {
-          return next(err);
+          // Ensure avatarUrl is properly set to either string or null
+          const sanitizedUser = {
+            ...user,
+            avatarUrl: user.avatarUrl || null,
+          };
+
+          req.login(sanitizedUser, (err) => {
+            if (err) {
+              return next(err);
+            }
+
+            // Generate a JWT token
+            const token = generateToken(sanitizedUser);
+
+            // Update user status to online
+            storage.updateUserStatus(user.id, "online");
+
+            return res.json({
+              success: true,
+              user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                status: user.status,
+                avatarUrl: user.avatarUrl,
+              },
+              token,
+            });
+          });
         }
-
-        // Generate a JWT token
-        const token = generateToken(sanitizedUser);
-
-        // Update user status to online
-        storage.updateUserStatus(user.id, "online");
-
-        return res.json({
-          success: true,
-          user: {
-            id: user.id,
-            username: user.username,
-            displayName: user.displayName,
-            status: user.status,
-            avatarUrl: user.avatarUrl
-          },
-          token
-        });
-      });
-    })(req, res, next);
-  });
+      )(req, res, next);
+    }
+  );
 
   // Logout endpoint
   app.post("/api/auth/logout", async (req: Request, res: Response) => {
@@ -268,12 +306,12 @@ export function setupAuth(app: Express) {
       if (err) {
         return res.status(500).json({
           success: false,
-          message: "Error logging out"
+          message: "Error logging out",
         });
       }
       res.json({
         success: true,
-        message: "Logged out successfully"
+        message: "Logged out successfully",
       });
     });
   });
@@ -290,7 +328,7 @@ export function setupAuth(app: Express) {
       username: req.user.username,
       displayName: req.user.displayName,
       status: req.user.status,
-      avatarUrl: req.user.avatarUrl
+      avatarUrl: req.user.avatarUrl,
     });
   });
 
@@ -299,7 +337,8 @@ export function setupAuth(app: Express) {
     // Skip auth for the auth routes and demo routes in development
     if (
       req.path.startsWith("/api/auth/") ||
-      (process.env.NODE_ENV === "development" && req.path.startsWith("/api/demo/"))
+      (process.env.NODE_ENV === "development" &&
+        req.path.startsWith("/api/demo/"))
     ) {
       return next();
     }
@@ -314,18 +353,19 @@ export function setupAuth(app: Express) {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
       const decoded = verifyToken(token);
-      
+
       if (decoded) {
         // Get the user from the database
-        storage.getUser(decoded.id)
-          .then(user => {
+        storage
+          .getUser(decoded.id)
+          .then((user) => {
             if (user) {
               req.user = user;
               return next();
             }
             res.status(401).json({ message: "Invalid token" });
           })
-          .catch(err => {
+          .catch((err) => {
             console.error("Token validation error:", err);
             res.status(500).json({ message: "Server error" });
           });
@@ -339,10 +379,14 @@ export function setupAuth(app: Express) {
 }
 
 // Helper middleware for routes that require authentication
-export function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
+export function ensureAuthenticated(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   if (req.isAuthenticated()) {
     return next();
   }
-  
+
   res.status(401).json({ message: "Not authenticated" });
 }
