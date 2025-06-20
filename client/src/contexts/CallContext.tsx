@@ -31,7 +31,11 @@ interface CallContextType {
   remoteStream: MediaStream | null;
 
   // Actions
-  initiateCall: (targetUserId: number, type: CallType) => Promise<void>;
+  initiateCall: (
+    targetUserId: number,
+    type: CallType,
+    targetUserName?: string
+  ) => Promise<void>;
   answerCall: () => Promise<void>;
   rejectCall: () => void;
   endCall: () => void;
@@ -48,6 +52,9 @@ interface CallContextType {
   callerName: string | null;
   localAudioEnabled: boolean;
   localVideoEnabled: boolean;
+  remoteAudioEnabled: boolean;
+  remoteVideoEnabled: boolean;
+  remoteUserInfo: { id: number; name: string } | null;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -101,6 +108,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [callerName, setCallerName] = useState<string | null>(null);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(true);
   const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
+  const [remoteAudioEnabled, setRemoteAudioEnabled] = useState(true);
+  const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(true);
+  const [remoteUserInfo, setRemoteUserInfo] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   const [incomingCallOffer, setIncomingCallOffer] = useState<any>(null);
 
@@ -287,12 +300,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setCallType(
         payload.callType === "voice" ? "audio" : payload.callType || "audio"
       );
-      setCallerName(
+      const callerDisplayName =
         payload.from?.displayName ||
-          payload.callerName ||
-          `User ${payload.fromUserId}` ||
-          "Unknown"
-      );
+        payload.callerName ||
+        `User ${payload.fromUserId}` ||
+        "Unknown";
+
+      setCallerName(callerDisplayName);
+      setRemoteUserInfo({
+        id: payload.fromUserId || payload.from?.id || 0,
+        name: callerDisplayName,
+      });
       setShowIncomingCall(true);
       setIncomingCallOffer(payload.offer);
 
@@ -425,6 +443,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setCallerName(null);
     setLocalAudioEnabled(true);
     setLocalVideoEnabled(true);
+    setRemoteAudioEnabled(true);
+    setRemoteVideoEnabled(true);
+    setRemoteUserInfo(null);
     setCurrentCallId(null);
     setIncomingCallOffer(null);
     stopRingtone();
@@ -437,7 +458,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   };
 
   // Call functions
-  const initiateCall = async (targetUserId: number, type: CallType) => {
+  const initiateCall = async (
+    targetUserId: number,
+    type: CallType,
+    targetUserName?: string
+  ) => {
     if (!user || isInCall) return;
 
     console.log(`Initiating ${type} call to user ${targetUserId}`);
@@ -451,6 +476,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
       // Generate call ID
       const callId = `call_${user.id}_${targetUserId}_${Date.now()}`;
       setCurrentCallId(callId);
+
+      // Set the target user info for outgoing calls
+      if (targetUserName) {
+        setCallerName(targetUserName);
+        setRemoteUserInfo({
+          id: targetUserId,
+          name: targetUserName,
+        });
+      }
 
       // Check WebRTC support and secure context
       checkWebRTCSupport();
@@ -815,6 +849,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     callerName,
     localAudioEnabled,
     localVideoEnabled,
+    remoteAudioEnabled,
+    remoteVideoEnabled,
+    remoteUserInfo,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;

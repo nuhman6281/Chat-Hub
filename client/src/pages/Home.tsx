@@ -603,7 +603,11 @@ export default function Home() {
                       "Audio call button clicked for user:",
                       activeDM.otherUser.id
                     );
-                    initiateCall(activeDM.otherUser.id, "audio");
+                    initiateCall(
+                      activeDM.otherUser.id,
+                      "audio",
+                      activeDM.otherUser.displayName
+                    );
                   }}
                   title="Start audio call"
                 >
@@ -617,7 +621,11 @@ export default function Home() {
                       "Video call button clicked for user:",
                       activeDM.otherUser.id
                     );
-                    initiateCall(activeDM.otherUser.id, "video");
+                    initiateCall(
+                      activeDM.otherUser.id,
+                      "video",
+                      activeDM.otherUser.displayName
+                    );
                   }}
                   title="Start video call"
                 >

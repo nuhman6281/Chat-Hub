@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { useCall, CallParticipant } from "@/contexts/CallContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,25 @@ import {
   MicOff,
   Video,
   VideoOff,
-  UserPlus,
+  Monitor,
+  Settings,
+  MoreVertical,
+  Maximize2,
+  Minimize2,
+  Volume2,
+  VolumeX,
+  Camera,
+  SwitchCamera,
+  Grid3X3,
+  Users,
+  MessageCircle,
+  Share,
+  Circle,
+  Pause,
+  Play,
+  RotateCcw,
+  Maximize,
+  PictureInPicture2,
 } from "lucide-react";
 import {
   Dialog,
@@ -19,19 +37,44 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 
-// VideoTile component for displaying a participant's video
-const VideoTile = ({ participant }: { participant: CallParticipant }) => {
+// Enhanced participant component
+const ParticipantTile = ({
+  participant,
+  isLocal = false,
+  isMainView = false,
+  onSwapToMain,
+  className = "",
+}: {
+  participant: CallParticipant;
+  isLocal?: boolean;
+  isMainView?: boolean;
+  onSwapToMain?: () => void;
+  className?: string;
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     if (videoRef.current && participant.stream) {
       videoRef.current.srcObject = participant.stream;
+      if (!isLocal) {
+        videoRef.current.play().catch(console.error);
+      }
     }
-  }, [participant.stream]);
+  }, [participant.stream, isLocal]);
 
-  // Get initials for avatar
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -41,41 +84,97 @@ const VideoTile = ({ participant }: { participant: CallParticipant }) => {
   };
 
   return (
-    <div className="relative rounded-lg overflow-hidden bg-muted aspect-video">
+    <div
+      className={`relative rounded-xl overflow-hidden bg-gray-900 border-2 border-gray-700 transition-all duration-200 hover:border-blue-500 group ${className}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onSwapToMain}
+      style={{ cursor: onSwapToMain ? "pointer" : "default" }}
+    >
       {participant.stream && participant.videoEnabled ? (
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          muted={participant.userId === 0} // Mute if local user
+          muted={isLocal}
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <Avatar className="h-24 w-24">
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+          <Avatar className={isMainView ? "h-32 w-32" : "h-16 w-16"}>
             <AvatarImage src={""} alt={participant.displayName} />
-            <AvatarFallback className="text-4xl">
+            <AvatarFallback
+              className={`${
+                isMainView ? "text-4xl" : "text-xl"
+              } bg-blue-600 text-white`}
+            >
               {getInitials(participant.displayName)}
             </AvatarFallback>
           </Avatar>
         </div>
       )}
 
-      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-        <div className="bg-background/80 px-2 py-1 rounded-full text-sm flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              participant.audioEnabled ? "bg-green-500" : "bg-red-500"
-            }`}
-          />
-          <span>{participant.displayName}</span>
+      {/* Participant info overlay */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={participant.audioEnabled ? "default" : "destructive"}
+              className="text-xs"
+            >
+              {participant.audioEnabled ? (
+                <Mic className="h-3 w-3" />
+              ) : (
+                <MicOff className="h-3 w-3" />
+              )}
+            </Badge>
+            <span className="text-white text-sm font-medium truncate">
+              {participant.displayName}
+            </span>
+            {isLocal && (
+              <Badge variant="secondary" className="text-xs">
+                You
+              </Badge>
+            )}
+          </div>
+
+          {!participant.videoEnabled && (
+            <VideoOff className="h-4 w-4 text-red-400" />
+          )}
         </div>
       </div>
+
+      {/* Connection quality indicator */}
+      <div className="absolute top-3 right-3">
+        <div className="flex items-center gap-1">
+          <div className="w-1 h-3 bg-green-500 rounded-full"></div>
+          <div className="w-1 h-2 bg-green-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-green-300 rounded-full"></div>
+        </div>
+      </div>
+
+      {/* Swap to main view button */}
+      {onSwapToMain && isHovered && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="opacity-90 hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSwapToMain();
+            }}
+          >
+            <Maximize2 className="h-4 w-4 mr-1" />
+            View
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
 
-// Incoming call dialog
+// Incoming call dialog with enhanced UI
 export function IncomingCallDialog() {
   const { showIncomingCall, callType, callerName, answerCall, rejectCall } =
     useCall();
@@ -85,40 +184,48 @@ export function IncomingCallDialog() {
   return (
     <Dialog open={showIncomingCall} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="text-center">
+          <DialogTitle className="text-2xl">
             Incoming {callType === "video" ? "Video" : "Audio"} Call
           </DialogTitle>
-          <DialogDescription>{callerName} is calling you</DialogDescription>
+          <DialogDescription className="text-lg mt-2">
+            {callerName} is calling you
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center my-6">
-          <Avatar className="h-20 w-20">
-            <AvatarFallback className="text-4xl">
-              {callerName?.charAt(0).toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex justify-center my-8">
+          <div className="relative">
+            <Avatar className="h-24 w-24 border-4 border-blue-500 animate-pulse">
+              <AvatarFallback className="text-3xl bg-blue-600 text-white">
+                {callerName?.charAt(0).toUpperCase() || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -top-2 -right-2">
+              {callType === "video" ? (
+                <Video className="h-6 w-6 text-blue-500" />
+              ) : (
+                <Phone className="h-6 w-6 text-green-500" />
+              )}
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="flex justify-center gap-4 sm:justify-center">
+        <DialogFooter className="flex justify-center gap-6 sm:justify-center">
           <Button
             variant="destructive"
-            size="icon"
-            className="rounded-full h-12 w-12"
+            size="lg"
+            className="rounded-full h-14 w-14"
             onClick={rejectCall}
           >
-            <PhoneOff className="h-5 w-5" />
+            <PhoneOff className="h-6 w-6" />
           </Button>
           <Button
             variant="default"
-            size="icon"
-            className="rounded-full h-12 w-12 bg-green-600 hover:bg-green-700"
-            onClick={() => {
-              console.log("Green answer button clicked!");
-              answerCall();
-            }}
+            size="lg"
+            className="rounded-full h-14 w-14 bg-green-600 hover:bg-green-700"
+            onClick={answerCall}
           >
-            <Phone className="h-5 w-5" />
+            <Phone className="h-6 w-6" />
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -126,7 +233,7 @@ export function IncomingCallDialog() {
   );
 }
 
-// Outgoing call dialog
+// Outgoing call dialog with enhanced UI
 export function OutgoingCallDialog() {
   const { outgoingCall, callType, callerName, endCall } = useCall();
 
@@ -135,30 +242,33 @@ export function OutgoingCallDialog() {
   return (
     <Dialog open={outgoingCall} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Calling...</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="text-center">
+          <DialogTitle className="text-2xl">Calling...</DialogTitle>
+          <DialogDescription className="text-lg mt-2">
             Calling {callerName || "user"} with{" "}
             {callType === "video" ? "video" : "audio"}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center my-6">
-          <Avatar className="h-20 w-20">
-            <AvatarFallback className="text-4xl">
-              {callerName?.charAt(0).toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex justify-center my-8">
+          <div className="relative">
+            <Avatar className="h-24 w-24 border-4 border-blue-500 animate-pulse">
+              <AvatarFallback className="text-3xl bg-blue-600 text-white">
+                {callerName?.charAt(0).toUpperCase() || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 border-4 border-blue-500 rounded-full animate-ping"></div>
+          </div>
         </div>
 
         <DialogFooter className="flex justify-center sm:justify-center">
           <Button
             variant="destructive"
-            size="icon"
-            className="rounded-full h-12 w-12"
+            size="lg"
+            className="rounded-full h-14 w-14"
             onClick={endCall}
           >
-            <PhoneOff className="h-5 w-5" />
+            <PhoneOff className="h-6 w-6" />
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -166,7 +276,7 @@ export function OutgoingCallDialog() {
   );
 }
 
-// Active call UI
+// Professional active call UI
 export function ActiveCallUI() {
   const {
     activeCall,
@@ -176,86 +286,94 @@ export function ActiveCallUI() {
     localVideoEnabled,
     localStream,
     remoteStream,
+    remoteAudioEnabled,
+    remoteVideoEnabled,
+    remoteUserInfo,
     endCall,
     toggleMute,
     toggleVideo,
   } = useCall();
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const localVideoPipRef = useRef<HTMLVideoElement>(null); // For picture-in-picture
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
-  // Set up local video streams when they change
+  // UI state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewMode, setViewMode] = useState<"speaker" | "gallery">("speaker");
+  const [showControls, setShowControls] = useState(true);
+  const [volume, setVolume] = useState([80]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+  const [mainParticipant, setMainParticipant] = useState<"local" | "remote">(
+    "remote"
+  );
+
+  // Call duration timer
   useEffect(() => {
-    // Set up main local video (only when no remote stream)
-    if (localVideoRef.current && localStream && !remoteStream) {
-      console.log("📹 CallUI: Setting up local video playback (main view)");
+    if (!activeCall) return;
+
+    const timer = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeCall]);
+
+  // Auto-hide controls
+  useEffect(() => {
+    if (!showControls) return;
+
+    const timer = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [showControls]);
+
+  // Media setup
+  useEffect(() => {
+    if (localVideoRef.current && localStream && mainParticipant === "local") {
       localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((error) => {
-        console.error("❌ CallUI: Error playing local video (main):", error);
-      });
     }
-  }, [localStream, remoteStream]);
-
-  // Set up picture-in-picture local video separately
-  useEffect(() => {
-    if (localVideoPipRef.current && localStream && remoteStream) {
-      console.log(
-        "📹 CallUI: Setting up local video playback (picture-in-picture)"
-      );
-      localVideoPipRef.current.srcObject = localStream;
-      localVideoPipRef.current.play().catch((error) => {
-        console.error("❌ CallUI: Error playing local video (pip):", error);
-      });
-    }
-  }, [localStream, remoteStream]);
+  }, [localStream, mainParticipant]);
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      console.log(
-        "📹 CallUI: Setting up remote video playback with",
-        remoteStream.getTracks().length,
-        "tracks"
-      );
-      console.log(
-        "📹 Remote stream video tracks:",
-        remoteStream.getVideoTracks().length
-      );
-      console.log(
-        "📹 Remote stream audio tracks:",
-        remoteStream.getAudioTracks().length
-      );
-
+    if (
+      remoteVideoRef.current &&
+      remoteStream &&
+      mainParticipant === "remote"
+    ) {
       remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch((error) => {
-        console.error("❌ CallUI: Error playing remote video:", error);
-      });
-    } else if (remoteVideoRef.current && !remoteStream) {
-      console.log("📹 CallUI: No remote stream available yet");
+      remoteVideoRef.current.play().catch(console.error);
     }
-  }, [remoteStream]);
+  }, [remoteStream, mainParticipant]);
 
-  // CRITICAL: Set up audio playback for remote stream
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream) {
-      console.log(
-        "🔊 CallUI: Setting up remote audio playback with",
-        remoteStream.getTracks().length,
-        "tracks"
-      );
       remoteAudioRef.current.srcObject = remoteStream;
-      remoteAudioRef.current.play().catch((error) => {
-        console.error("❌ CallUI: Error playing remote audio:", error);
-      });
+      remoteAudioRef.current.volume = volume[0] / 100;
+      remoteAudioRef.current.play().catch(console.error);
     }
-  }, [remoteStream]);
+  }, [remoteStream, volume]);
 
   if (!activeCall) return null;
 
-  // Create local participant if we have a local stream
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, "0")}:${secs
+        .toString()
+        .padStart(2, "0")}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
   const localParticipant: CallParticipant = {
-    userId: 0, // Local user ID
+    userId: 0,
     username: "You",
     displayName: "You",
     stream: localStream || undefined,
@@ -263,13 +381,33 @@ export function ActiveCallUI() {
     videoEnabled: localVideoEnabled,
   };
 
-  // Combine local and remote participants
-  const allParticipants = [localParticipant, ...participants];
+  const remoteParticipant: CallParticipant | null = remoteStream
+    ? {
+        userId: remoteUserInfo?.id || 1,
+        username: remoteUserInfo?.name || "Remote User",
+        displayName: remoteUserInfo?.name || "Remote User",
+        stream: remoteStream,
+        audioEnabled: remoteAudioEnabled,
+        videoEnabled: remoteVideoEnabled,
+      }
+    : null;
+
+  const allParticipants = [
+    localParticipant,
+    ...(remoteParticipant ? [remoteParticipant] : []),
+  ];
 
   return (
     <Dialog open={activeCall} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
-        {/* Hidden audio element for remote audio playback */}
+      <DialogContent
+        className={`${
+          isFullscreen
+            ? "max-w-full max-h-full w-screen h-screen"
+            : "sm:max-w-6xl max-h-[90vh]"
+        } p-0 bg-gray-900 border-gray-700`}
+        onMouseMove={() => setShowControls(true)}
+      >
+        {/* Hidden audio element */}
         <audio
           ref={remoteAudioRef}
           autoPlay
@@ -277,135 +415,331 @@ export function ActiveCallUI() {
           style={{ display: "none" }}
         />
 
-        <DialogHeader>
-          <DialogTitle>
-            {callType === "video" ? "Video" : "Audio"} Call
-          </DialogTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4"
-            onClick={endCall}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </DialogHeader>
+        {/* Header with call info */}
+        <div
+          className={`absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent p-4 transition-opacity duration-300 ${
+            showControls ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center gap-4">
+              <Badge
+                variant="secondary"
+                className="bg-green-600/20 text-green-400 border-green-600"
+              >
+                <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                {callType === "video" ? "Video Call" : "Audio Call"}
+              </Badge>
+              <span className="text-sm font-mono">
+                {formatDuration(callDuration)}
+              </span>
+              {isRecording && (
+                <Badge variant="destructive" className="animate-pulse">
+                  <Circle className="h-3 w-3 mr-1 fill-current" />
+                  Recording
+                </Badge>
+              )}
+            </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20"
+                onClick={endCall}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main video area */}
+        <div className="relative w-full h-full bg-gray-900 flex flex-col">
           {callType === "video" ? (
-            <div className="relative w-full h-96 bg-gray-900 rounded-lg overflow-hidden">
-              {/* Show local video in main view if no remote stream, otherwise show remote */}
-              {remoteStream ? (
-                /* Remote video (main view) when available */
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                /* Local video (main view) when no remote stream */
-                localStream && (
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
-                )
-              )}
+            <div className="flex-1 relative">
+              {viewMode === "speaker" ? (
+                <>
+                  {/* Main speaker view */}
+                  <div className="w-full h-full relative">
+                    {mainParticipant === "remote" && remoteStream ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    )}
 
-              {/* Local video (picture-in-picture) only when remote stream exists */}
-              {remoteStream && localStream && (
-                <video
-                  ref={localVideoPipRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="absolute top-4 right-4 w-32 h-24 bg-gray-800 rounded border-2 border-white object-cover"
-                />
-              )}
-
-              {/* No video indicators */}
-              {!remoteStream && !localStream && (
-                <div className="absolute inset-0 flex items-center justify-center text-white">
-                  <div className="text-center">
-                    <VideoOff className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Waiting for video...</p>
+                    {/* Main view participant info */}
+                    <div className="absolute bottom-4 left-4">
+                      <Badge className="bg-black/50 text-white border-gray-600">
+                        {mainParticipant === "remote"
+                          ? remoteUserInfo?.name || "Remote User"
+                          : "You (Main View)"}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {!remoteStream && localStream && (
-                <div className="absolute bottom-4 left-4 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                  Waiting for remote video...
+                  {/* Picture-in-picture thumbnails */}
+                  <div className="absolute top-20 right-4 space-y-3">
+                    {allParticipants.map((participant, index) => {
+                      const isMainView =
+                        (participant.displayName === "You" &&
+                          mainParticipant === "local") ||
+                        (participant.displayName !== "You" &&
+                          mainParticipant === "remote");
+
+                      if (isMainView) return null;
+
+                      return (
+                        <ParticipantTile
+                          key={index}
+                          participant={participant}
+                          isLocal={participant.displayName === "You"}
+                          className="w-48 h-36"
+                          onSwapToMain={() =>
+                            setMainParticipant(
+                              participant.displayName === "You"
+                                ? "local"
+                                : "remote"
+                            )
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                /* Gallery view */
+                <div className="w-full h-full p-4">
+                  <div
+                    className={`grid gap-4 h-full ${
+                      allParticipants.length <= 2
+                        ? "grid-cols-2"
+                        : "grid-cols-2 grid-rows-2"
+                    }`}
+                  >
+                    {allParticipants.map((participant, index) => (
+                      <ParticipantTile
+                        key={index}
+                        participant={participant}
+                        isLocal={participant.displayName === "You"}
+                        className="w-full h-full"
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-                  <Phone className="h-8 w-8 text-gray-600" />
+            /* Audio call UI */
+            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900">
+              <div className="text-center text-white">
+                <div className="flex justify-center gap-8 mb-8">
+                  {allParticipants.map((participant, index) => (
+                    <div key={index} className="text-center">
+                      <Avatar className="h-32 w-32 mx-auto mb-4 border-4 border-white/20">
+                        <AvatarFallback className="text-4xl bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                          {participant.displayName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Badge
+                        variant={
+                          participant.audioEnabled ? "default" : "destructive"
+                        }
+                        className="mb-2"
+                      >
+                        {participant.audioEnabled ? (
+                          <Mic className="h-3 w-3 mr-1" />
+                        ) : (
+                          <MicOff className="h-3 w-3 mr-1" />
+                        )}
+                        {participant.audioEnabled ? "Speaking" : "Muted"}
+                      </Badge>
+                      <p className="font-medium">{participant.displayName}</p>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-lg font-medium">Audio Call Active</p>
-                <p className="text-sm text-gray-500">
-                  {localAudioEnabled ? "Microphone active" : "Microphone muted"}
+                <p className="text-2xl font-light mb-2">
+                  Audio Call in Progress
+                </p>
+                <p className="text-lg opacity-75">
+                  {formatDuration(callDuration)}
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex justify-center gap-4 py-4">
-          <Button
-            variant="outline"
-            size="icon"
-            className={`rounded-full h-10 w-10 ${
-              !localAudioEnabled ? "bg-red-100 text-red-500" : ""
-            }`}
-            onClick={toggleMute}
-          >
-            {localAudioEnabled ? (
-              <Mic className="h-5 w-5" />
-            ) : (
-              <MicOff className="h-5 w-5" />
-            )}
-          </Button>
+        {/* Bottom control panel */}
+        <div
+          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6 transition-opacity duration-300 ${
+            showControls ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            {/* Left controls */}
+            <div className="flex items-center gap-3">
+              {/* Volume control */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20"
+                  >
+                    {volume[0] > 0 ? (
+                      <Volume2 className="h-5 w-5" />
+                    ) : (
+                      <VolumeX className="h-5 w-5" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <div className="p-3">
+                    <p className="text-sm font-medium mb-2">Volume</p>
+                    <Slider
+                      value={volume}
+                      onValueChange={setVolume}
+                      max={100}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-          {callType === "video" && (
-            <Button
-              variant="outline"
-              size="icon"
-              className={`rounded-full h-10 w-10 ${
-                !localVideoEnabled ? "bg-red-100 text-red-500" : ""
-              }`}
-              onClick={toggleVideo}
-            >
-              {localVideoEnabled ? (
-                <Video className="h-5 w-5" />
-              ) : (
-                <VideoOff className="h-5 w-5" />
+              {/* View mode toggle */}
+              {callType === "video" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20"
+                  onClick={() =>
+                    setViewMode(viewMode === "speaker" ? "gallery" : "speaker")
+                  }
+                >
+                  {viewMode === "speaker" ? (
+                    <Grid3X3 className="h-5 w-5" />
+                  ) : (
+                    <Users className="h-5 w-5" />
+                  )}
+                </Button>
               )}
-            </Button>
-          )}
+            </div>
 
-          <Button
-            variant="destructive"
-            size="icon"
-            className="rounded-full h-10 w-10"
-            onClick={endCall}
-          >
-            <PhoneOff className="h-5 w-5" />
-          </Button>
+            {/* Center controls */}
+            <div className="flex items-center gap-4">
+              {/* Microphone */}
+              <Button
+                variant={localAudioEnabled ? "secondary" : "destructive"}
+                size="lg"
+                className="rounded-full h-12 w-12"
+                onClick={toggleMute}
+              >
+                {localAudioEnabled ? (
+                  <Mic className="h-5 w-5" />
+                ) : (
+                  <MicOff className="h-5 w-5" />
+                )}
+              </Button>
+
+              {/* End call */}
+              <Button
+                variant="destructive"
+                size="lg"
+                className="rounded-full h-14 w-14 bg-red-600 hover:bg-red-700"
+                onClick={endCall}
+              >
+                <PhoneOff className="h-6 w-6" />
+              </Button>
+
+              {/* Video toggle */}
+              {callType === "video" && (
+                <Button
+                  variant={localVideoEnabled ? "secondary" : "destructive"}
+                  size="lg"
+                  className="rounded-full h-12 w-12"
+                  onClick={toggleVideo}
+                >
+                  {localVideoEnabled ? (
+                    <Video className="h-5 w-5" />
+                  ) : (
+                    <VideoOff className="h-5 w-5" />
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Right controls */}
+            <div className="flex items-center gap-3">
+              {/* More options */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20"
+                  >
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => setIsRecording(!isRecording)}
+                  >
+                    {isRecording ? (
+                      <Pause className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Circle className="h-4 w-4 mr-2 fill-current" />
+                    )}
+                    {isRecording ? "Stop Recording" : "Start Recording"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Share className="h-4 w-4 mr-2" />
+                    Share Screen
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Open Chat
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-// Call UI wrapper component
+// Enhanced call UI wrapper
 export default function CallUI() {
   return (
     <>
