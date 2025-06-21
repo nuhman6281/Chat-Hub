@@ -24,6 +24,24 @@ import {
   verifyToken,
   comparePasswords,
 } from "./auth";
+import webpush from "web-push";
+
+// Configure web-push with VAPID keys
+webpush.setVapidDetails(
+  "mailto:admin@eventsentinel.com",
+  process.env.VAPID_PUBLIC_KEY ||
+    "BEl62iUYgUivxIkv69yViEuiBIa40HI2BN4EMYaiz26qhrLrxVNjykdMjFbSRUaq_4F6RqVA0qNuZfLjPJsrqWE",
+  process.env.VAPID_PRIVATE_KEY || "dUiMIBrugGm7BXkqJhz24gv7HCBjWpTjA5sGSGRxaLY"
+);
+
+// Push notification subscriptions storage
+interface PushSubscription {
+  userId: number;
+  subscription: webpush.PushSubscription;
+  createdAt: Date;
+}
+
+const pushSubscriptions: Map<number, PushSubscription[]> = new Map();
 
 // WebSocket client map
 interface ConnectedClient {
@@ -2001,6 +2019,582 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Reaction error:", error);
         res.status(500).json({ message: "Failed to add reaction" });
+      }
+    }
+  );
+
+  // Push notification routes
+  app.post(
+    "/api/notifications/subscribe",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const { subscription } = req.body;
+
+        if (!subscription) {
+          return res
+            .status(400)
+            .json({ message: "Subscription data required" });
+        }
+
+        // Store subscription for user
+        const userSubscriptions = pushSubscriptions.get(userId) || [];
+        const newSubscription: PushSubscription = {
+          userId,
+          subscription,
+          createdAt: new Date(),
+        };
+
+        // Remove existing subscription with same endpoint
+        const filteredSubscriptions = userSubscriptions.filter(
+          (sub) => sub.subscription.endpoint !== subscription.endpoint
+        );
+        filteredSubscriptions.push(newSubscription);
+
+        pushSubscriptions.set(userId, filteredSubscriptions);
+
+        res.json({ success: true, message: "Subscription saved" });
+      } catch (error) {
+        console.error("Push subscription error:", error);
+        res.status(500).json({ message: "Failed to save subscription" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/notifications/unsubscribe",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const { endpoint } = req.body;
+
+        const userSubscriptions = pushSubscriptions.get(userId) || [];
+        const filteredSubscriptions = userSubscriptions.filter(
+          (sub) => sub.subscription.endpoint !== endpoint
+        );
+
+        pushSubscriptions.set(userId, filteredSubscriptions);
+
+        res.json({ success: true, message: "Subscription removed" });
+      } catch (error) {
+        console.error("Push unsubscribe error:", error);
+        res.status(500).json({ message: "Failed to remove subscription" });
+      }
+    }
+  );
+
+  // Search routes
+  app.post(
+    "/api/search/global",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const { query, filters, limit = 20, cursor } = req.body;
+
+        if (!query || query.trim() === "") {
+          return res.status(400).json({ message: "Search query is required" });
+        }
+
+        // Perform global search across messages, files, channels, users
+        const searchResults = await storage.globalSearch(
+          query,
+          filters,
+          userId,
+          limit,
+          cursor
+        );
+
+        res.json({
+          query,
+          filters,
+          results: searchResults.results,
+          totalCount: searchResults.totalCount,
+          facets: searchResults.facets,
+          suggestions: [],
+          executionTime: searchResults.executionTime,
+          hasMore: searchResults.hasMore,
+          nextCursor: searchResults.nextCursor,
+        });
+      } catch (error) {
+        console.error("Global search error:", error);
+        res.status(500).json({ message: "Search failed" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/search/files",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const { query, fileTypes, limit = 10 } = req.body;
+
+        const fileResults = await storage.searchFiles(
+          query,
+          fileTypes,
+          userId,
+          limit
+        );
+
+        res.json({
+          query,
+          results: fileResults,
+          totalCount: fileResults.length,
+          executionTime: 0,
+        });
+      } catch (error) {
+        console.error("File search error:", error);
+        res.status(500).json({ message: "File search failed" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/search/suggestions",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const { query, limit = 5 } = req.body;
+
+        const suggestions = await storage.getSearchSuggestions(
+          query,
+          userId,
+          limit
+        );
+
+        res.json(suggestions);
+      } catch (error) {
+        console.error("Search suggestions error:", error);
+        res.status(500).json({ message: "Failed to get suggestions" });
+      }
+    }
+  );
+
+  // Admin routes
+  app.get(
+    "/api/admin/stats",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+
+        const stats = await storage.getAdminStats();
+        res.json(stats);
+      } catch (error) {
+        console.error("Admin stats error:", error);
+        res.status(500).json({ message: "Failed to get admin stats" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/admin/users",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+
+        const users = await storage.getAllUsersForAdmin();
+        res.json(users);
+      } catch (error) {
+        console.error("Admin users error:", error);
+        res.status(500).json({ message: "Failed to get users" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/users/:id/:action",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+
+        const targetUserId = parseInt(req.params.id);
+        const action = req.params.action;
+
+        await storage.performUserAction(targetUserId, action, req.body);
+        res.json({ success: true, message: `User ${action} completed` });
+      } catch (error) {
+        console.error("Admin user action error:", error);
+        res.status(500).json({ message: "Failed to perform user action" });
+      }
+    }
+  );
+
+  // Calendar routes
+  app.post(
+    "/api/calendar/events",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const eventData = req.body;
+
+        const event = await storage.createCalendarEvent(userId, eventData);
+        res.json(event);
+      } catch (error) {
+        console.error("Calendar event creation error:", error);
+        res.status(500).json({ message: "Failed to create calendar event" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/calendar/events/:id",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const eventId = req.params.id;
+
+        const event = await storage.getCalendarEvent(eventId, userId);
+        if (!event) {
+          return res.status(404).json({ message: "Event not found" });
+        }
+
+        res.json(event);
+      } catch (error) {
+        console.error("Calendar event fetch error:", error);
+        res.status(500).json({ message: "Failed to get calendar event" });
+      }
+    }
+  );
+
+  // Group call routes
+  app.post(
+    "/api/calls/create",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const callData = req.body;
+
+        const call = await storage.createGroupCall(userId, callData);
+        res.json(call);
+      } catch (error) {
+        console.error("Group call creation error:", error);
+        res.status(500).json({ message: "Failed to create group call" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/calls/:id",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const callId = req.params.id;
+
+        const call = await storage.getGroupCall(callId, userId);
+        if (!call) {
+          return res.status(404).json({ message: "Call not found" });
+        }
+
+        res.json(call);
+      } catch (error) {
+        console.error("Group call fetch error:", error);
+        res.status(500).json({ message: "Failed to get group call" });
+      }
+    }
+  );
+
+  // Helper function to send push notifications
+  async function sendPushNotification(userId: number, payload: any) {
+    const userSubscriptions = pushSubscriptions.get(userId) || [];
+
+    const notificationPayload = JSON.stringify({
+      title: payload.title || "EventSentinel",
+      body: payload.body || "You have a new notification",
+      icon: "/icons/notification-icon.png",
+      badge: "/icons/badge-icon.png",
+      data: payload.data || {},
+    });
+
+    const promises = userSubscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(sub.subscription, notificationPayload);
+      } catch (error) {
+        console.error("Push notification failed:", error);
+        // Remove invalid subscription
+        const filtered = userSubscriptions.filter((s) => s !== sub);
+        pushSubscriptions.set(userId, filtered);
+      }
+    });
+
+    await Promise.allSettled(promises);
+  }
+
+  // Enhanced message broadcasting with push notifications
+  function enhancedBroadcastToChannel(channelId: number, data: any) {
+    broadcastToChannel(channelId, data);
+
+    // Send push notifications to offline users
+    if (data.type === "new_message") {
+      const message = data.payload;
+      storage.getChannelMembers(channelId).then((members) => {
+        members.forEach((member) => {
+          const isOnline = clients.some(
+            (client) => client.userId === member.userId
+          );
+          if (!isOnline) {
+            sendPushNotification(member.userId, {
+              title: `New message in #${message.channelName || "channel"}`,
+              body: `${message.user.displayName}: ${message.content}`,
+              data: {
+                channelId,
+                messageId: message.id,
+                isMention: message.content.includes(`@${member.username}`),
+              },
+            });
+          }
+        });
+      });
+    }
+  }
+
+  // SSO Integration endpoints
+  app.get(
+    "/api/sso/providers",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const providers = await storage.getSSOProviders();
+        res.json(providers);
+      } catch (error) {
+        console.error("Error getting SSO providers:", error);
+        res.status(500).json({ error: "Failed to get SSO providers" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/sso/providers",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const { provider, name, settings } = req.body;
+        const configId = await storage.createSSOProvider(
+          provider,
+          name,
+          settings
+        );
+        res.json({ id: configId });
+      } catch (error) {
+        console.error("Error creating SSO provider:", error);
+        res.status(500).json({ error: "Failed to create SSO provider" });
+      }
+    }
+  );
+
+  // Webhook System endpoints
+  app.get(
+    "/api/webhooks",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const webhooks = await storage.getWebhooks();
+        res.json(webhooks);
+      } catch (error) {
+        console.error("Error getting webhooks:", error);
+        res.status(500).json({ error: "Failed to get webhooks" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/webhooks",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const { name, url, events, secret, headers } = req.body;
+        const webhookId = await storage.createWebhook(
+          name,
+          url,
+          events,
+          secret,
+          headers
+        );
+        res.json({ id: webhookId });
+      } catch (error) {
+        console.error("Error creating webhook:", error);
+        res.status(500).json({ error: "Failed to create webhook" });
+      }
+    }
+  );
+
+  // Analytics endpoints
+  app.get(
+    "/api/analytics/user-engagement",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const { timeRange = "30d" } = req.query;
+        const metrics = await storage.getUserEngagementMetrics(
+          timeRange as string
+        );
+        res.json(metrics);
+      } catch (error) {
+        console.error("Error getting user engagement metrics:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to get user engagement metrics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/communication",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const { timeRange = "30d" } = req.query;
+        const metrics = await storage.getCommunicationAnalytics(
+          timeRange as string
+        );
+        res.json(metrics);
+      } catch (error) {
+        console.error("Error getting communication analytics:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to get communication analytics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/system-performance",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const metrics = await storage.getSystemPerformanceMetrics();
+        res.json(metrics);
+      } catch (error) {
+        console.error("Error getting system performance metrics:", error);
+        res
+          .status(500)
+          .json({ error: "Failed to get system performance metrics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/realtime",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const user = req.user as any;
+        if (user.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+        const metrics = await storage.getRealTimeMetrics();
+        res.json(metrics);
+      } catch (error) {
+        console.error("Error getting real-time metrics:", error);
+        res.status(500).json({ error: "Failed to get real-time metrics" });
+      }
+    }
+  );
+
+  // Workflow Automation endpoints
+  app.get(
+    "/api/workflows",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workflows = await storage.getWorkflows();
+        res.json(workflows);
+      } catch (error) {
+        console.error("Error getting workflows:", error);
+        res.status(500).json({ error: "Failed to get workflows" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/workflows",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const workflowData = req.body;
+        const workflowId = await storage.createWorkflow(workflowData);
+        res.json({ id: workflowId });
+      } catch (error) {
+        console.error("Error creating workflow:", error);
+        res.status(500).json({ error: "Failed to create workflow" });
+      }
+    }
+  );
+
+  // Bot endpoints
+  app.get(
+    "/api/bots",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const bots = await storage.getChatBots();
+        res.json(bots);
+      } catch (error) {
+        console.error("Error getting bots:", error);
+        res.status(500).json({ error: "Failed to get bots" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/bots",
+    ensureAuthenticated,
+    async (req: Request, res: Response) => {
+      try {
+        const botData = req.body;
+        const botId = await storage.createChatBot(botData);
+        res.json({ id: botId });
+      } catch (error) {
+        console.error("Error creating bot:", error);
+        res.status(500).json({ error: "Failed to create bot" });
       }
     }
   );

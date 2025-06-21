@@ -1232,6 +1232,296 @@ export class DatabaseStorage implements IStorage {
 
     return result.map((r) => ({ ...r.message, user: r.user }));
   }
+
+  // Advanced search methods
+  async globalSearch(
+    query: string,
+    filters: any,
+    userId: number,
+    limit: number,
+    cursor?: string
+  ): Promise<any> {
+    // Placeholder implementation - would use proper search engine in production
+    const searchResults = await this.searchMessages(query, userId);
+    return {
+      results: searchResults.slice(0, limit),
+      totalCount: searchResults.length,
+      facets: {},
+      executionTime: 0,
+      hasMore: searchResults.length > limit,
+      nextCursor: null,
+    };
+  }
+
+  async searchFiles(
+    query: string,
+    fileTypes: string[],
+    userId: number,
+    limit: number
+  ): Promise<any[]> {
+    // Placeholder implementation
+    return [];
+  }
+
+  async getSearchSuggestions(
+    query: string,
+    userId: number,
+    limit: number
+  ): Promise<any[]> {
+    // Placeholder implementation
+    return [];
+  }
+
+  // Admin methods
+  async getAdminStats(): Promise<any> {
+    const [userCount, messageCount, channelCount] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(users),
+      db.select({ count: sql<number>`count(*)` }).from(messages),
+      db.select({ count: sql<number>`count(*)` }).from(channels),
+    ]);
+
+    return {
+      totalUsers: userCount[0].count,
+      activeUsers: userCount[0].count, // Simplified
+      totalMessages: messageCount[0].count,
+      totalChannels: channelCount[0].count,
+      totalWorkspaces: 1,
+      storageUsed: 1024 * 1024 * 100, // 100MB placeholder
+      storageLimit: 1024 * 1024 * 1024 * 10, // 10GB placeholder
+      systemUptime: 99.9,
+      averageResponseTime: 150,
+      errorRate: 0.1,
+    };
+  }
+
+  async getAllUsersForAdmin(): Promise<any[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        status: users.status,
+        createdAt: sql<Date>`now()`, // Placeholder
+      })
+      .from(users);
+
+    return result.map((user) => ({
+      ...user,
+      email: `${user.username}@example.com`, // Placeholder
+      role: user.id === 1 ? "admin" : "user",
+      lastActive: new Date(),
+      joinedAt: new Date(),
+      messageCount: 0,
+      workspaceCount: 1,
+      isOnline: user.status === "online",
+    }));
+  }
+
+  async performUserAction(
+    targetUserId: number,
+    action: string,
+    data: any
+  ): Promise<void> {
+    // Placeholder implementation for user actions
+    console.log(`Performing action ${action} on user ${targetUserId}`, data);
+  }
+
+  // Calendar methods
+  async createCalendarEvent(userId: number, eventData: any): Promise<any> {
+    // Placeholder implementation
+    return {
+      id: `event-${Date.now()}`,
+      ...eventData,
+      createdAt: new Date(),
+    };
+  }
+
+  async getCalendarEvent(eventId: string, userId: number): Promise<any> {
+    // Placeholder implementation
+    return null;
+  }
+
+  // Group call methods
+  async createGroupCall(userId: number, callData: any): Promise<any> {
+    // Placeholder implementation
+    return {
+      id: `call-${Date.now()}`,
+      ...callData,
+      createdAt: new Date(),
+    };
+  }
+
+  async getGroupCall(callId: string, userId: number): Promise<any> {
+    // Placeholder implementation
+    return null;
+  }
+
+  async getChannelMembers(channelId: number): Promise<any[]> {
+    const result = await db
+      .select({
+        userId: channelMembers.userId,
+        username: users.username,
+      })
+      .from(channelMembers)
+      .leftJoin(users, eq(channelMembers.userId, users.id))
+      .where(eq(channelMembers.channelId, channelId));
+
+    return result.map((row) => ({
+      userId: row.userId,
+      username: row.username,
+    }));
+  }
+
+  // SSO Integration methods
+  async getSSOProviders(): Promise<any[]> {
+    // Mock implementation - in real app would query database
+    return [];
+  }
+
+  async createSSOProvider(
+    provider: string,
+    name: string,
+    settings: any
+  ): Promise<string> {
+    // Mock implementation - in real app would insert into database
+    return `sso_${Date.now()}`;
+  }
+
+  // Webhook System methods
+  async getWebhooks(): Promise<any[]> {
+    // Mock implementation - in real app would query database
+    return [];
+  }
+
+  async createWebhook(
+    name: string,
+    url: string,
+    events: string[],
+    secret: string,
+    headers: any
+  ): Promise<string> {
+    // Mock implementation - in real app would insert into database
+    return `webhook_${Date.now()}`;
+  }
+
+  // Analytics methods
+  async getUserEngagementMetrics(timeRange: string): Promise<any> {
+    // Mock implementation - in real app would calculate from database
+    return {
+      totalUsers: 150,
+      activeUsers: 85,
+      dailyActiveUsers: 45,
+      weeklyActiveUsers: 75,
+      monthlyActiveUsers: 120,
+      userRetentionRate: 78.5,
+      averageSessionDuration: 1800,
+      messagesPerUser: 25.3,
+      callsPerUser: 3.2,
+      userGrowthRate: 12.5,
+    };
+  }
+
+  async getCommunicationAnalytics(timeRange: string): Promise<any> {
+    // Mock implementation - in real app would calculate from database
+    return {
+      totalMessages: 5420,
+      messagesPerDay: 180,
+      averageResponseTime: 300,
+      mostActiveChannels: [
+        { channelId: 1, name: "general", messageCount: 1250 },
+        { channelId: 2, name: "development", messageCount: 890 },
+      ],
+      mostActiveUsers: [
+        { userId: 1, username: "alice", messageCount: 450 },
+        { userId: 2, username: "bob", messageCount: 380 },
+      ],
+      peakActivityHours: [
+        { hour: 9, messageCount: 45 },
+        { hour: 14, messageCount: 52 },
+      ],
+      messageTypes: { text: 4200, files: 890, links: 330 },
+      emojiUsage: [
+        { emoji: "👍", count: 234 },
+        { emoji: "😄", count: 187 },
+      ],
+    };
+  }
+
+  async getSystemPerformanceMetrics(): Promise<any> {
+    // Mock implementation - in real app would get from system monitoring
+    return {
+      uptime: 99.8,
+      averageResponseTime: 120,
+      errorRate: 0.2,
+      throughput: 1250,
+      concurrentUsers: 45,
+      memoryUsage: 68.5,
+      cpuUsage: 35.2,
+      diskUsage: 42.8,
+      networkLatency: 25,
+      databasePerformance: {
+        queryTime: 15,
+        connectionCount: 12,
+        slowQueries: 2,
+      },
+    };
+  }
+
+  async getRealTimeMetrics(): Promise<any> {
+    // Mock implementation - in real app would get current system state
+    return {
+      activeUsers: 45,
+      currentCalls: 3,
+      messagesPerMinute: 12,
+      systemLoad: 35.2,
+    };
+  }
+
+  async getCallAnalytics(timeRange: string): Promise<any> {
+    // Mock implementation - in real app would calculate from database
+    return {
+      totalCalls: 234,
+      callDuration: 125400,
+      averageCallDuration: 536,
+      callSuccessRate: 94.2,
+      callQualityMetrics: {
+        averageAudioQuality: 4.2,
+        averageVideoQuality: 4.0,
+        connectionIssues: 8,
+      },
+      mostPopularCallTimes: [
+        { hour: 10, callCount: 15 },
+        { hour: 14, callCount: 22 },
+      ],
+      participantStatistics: {
+        averageParticipants: 3.4,
+        maxParticipants: 12,
+        screenShareUsage: 68,
+      },
+    };
+  }
+
+  // Workflow Automation methods
+  async getWorkflows(): Promise<any[]> {
+    // Mock implementation - in real app would query database
+    return [];
+  }
+
+  async createWorkflow(workflowData: any): Promise<string> {
+    // Mock implementation - in real app would insert into database
+    return `workflow_${Date.now()}`;
+  }
+
+  // Bot methods
+  async getChatBots(): Promise<any[]> {
+    // Mock implementation - in real app would query database
+    return [];
+  }
+
+  async createChatBot(botData: any): Promise<string> {
+    // Mock implementation - in real app would insert into database
+    return `bot_${Date.now()}`;
+  }
 }
 
 // Use database storage for persistence
