@@ -15,7 +15,6 @@ const HomePage = lazy(() => import("@/pages/Home"));
 const AuthPage = lazy(() => import("@/pages/auth-page"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
-
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-screen w-full">
@@ -28,9 +27,23 @@ function Router() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Switch>
+        {/* Default route - redirects to first workspace */}
         <ProtectedRoute path="/" component={HomePage} />
+
+        {/* Workspace routes */}
+        <ProtectedRoute path="/workspace/:workspaceId" component={HomePage} />
+        <ProtectedRoute
+          path="/workspace/:workspaceId/channel/:channelId"
+          component={HomePage}
+        />
+
+        {/* Direct message routes */}
+        <ProtectedRoute path="/dm/:dmId" component={HomePage} />
+
+        {/* Authentication route */}
         <Route path="/auth" component={AuthPage} />
 
+        {/* 404 fallback */}
         <Route component={NotFound} />
       </Switch>
     </Suspense>

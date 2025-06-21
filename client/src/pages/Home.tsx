@@ -61,6 +61,15 @@ import {
 import EnhancedMessageInput from "@/components/chat/EnhancedMessageInput";
 import { InviteUserDialog } from "@/components/InviteUserDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
+import { useRouting } from "@/hooks/use-routing";
+import { cn } from "@/lib/utils";
+import { Workspace } from "@/shared/schema";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Create workspace/channel form schemas
 const createWorkspaceSchema = z.object({
@@ -101,9 +110,20 @@ export default function Home() {
     answerCall,
     hangupCall,
     setIsCallModalOpen,
+    // Loading states
+    isLoadingWorkspaces,
+    isLoadingChannels,
+    isLoadingDirectMessages,
+    isLoadingMembers,
   } = useChat();
   const { toast } = useToast();
   const { initiateCall } = useCall();
+  const {
+    navigateToWorkspace,
+    navigateToChannel,
+    navigateToDirectMessage,
+    isNavigating,
+  } = useRouting();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("channels");
@@ -161,16 +181,17 @@ export default function Home() {
     if (!activeWorkspace) return;
 
     try {
-      await createChannel({
-        ...values,
-        workspaceId: activeWorkspace.id,
-      });
-      setShowCreateChannel(false);
-      channelForm.reset();
-      toast({
-        title: "Success",
-        description: "Channel created successfully",
-      });
+      const newChannel = await createChannel(
+        values.name,
+        false,
+        values.description
+      );
+      if (newChannel) {
+        setShowCreateChannel(false);
+        channelForm.reset();
+        // Navigate to the new channel
+        navigateToChannel(activeWorkspace.id, newChannel.id);
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -314,18 +335,27 @@ export default function Home() {
             </div>
 
             <div className="mt-2 space-y-1">
-              {workspaces.map((workspace) => (
-                <Button
-                  key={workspace.id}
-                  variant={
-                    activeWorkspace?.id === workspace.id ? "secondary" : "ghost"
-                  }
-                  className="w-full justify-start h-8 px-2"
-                  onClick={() => setActiveWorkspace(workspace)}
-                >
-                  <span className="truncate text-sm">{workspace.name}</span>
-                </Button>
-              ))}
+              {isLoadingWorkspaces ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                workspaces.map((workspace) => (
+                  <Button
+                    key={workspace.id}
+                    variant={
+                      activeWorkspace?.id === workspace.id
+                        ? "secondary"
+                        : "ghost"
+                    }
+                    className="w-full justify-start h-8 px-2"
+                    onClick={() => navigateToWorkspace(workspace.id)}
+                    disabled={isNavigating}
+                  >
+                    <span className="truncate text-sm">{workspace.name}</span>
+                  </Button>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -417,24 +447,40 @@ export default function Home() {
 
                 <ScrollArea className="flex-1 px-2">
                   <div className="space-y-[2px] py-2">
-                    {channels.map((channel) => (
-                      <Button
-                        key={channel.id}
-                        variant={
-                          activeChannel?.id === channel.id
-                            ? "secondary"
-                            : "ghost"
-                        }
-                        className="w-full justify-start h-8 px-2"
-                        onClick={() => {
-                          setActiveChannel(channel);
-                          setActiveDM(null);
-                        }}
-                      >
-                        <Hash className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="truncate text-sm">{channel.name}</span>
-                      </Button>
-                    ))}
+                    {isLoadingChannels ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : channels.length === 0 ? (
+                      <div className="px-2 py-4 text-center">
+                        <div className="text-xs text-muted-foreground">
+                          No channels available
+                        </div>
+                      </div>
+                    ) : (
+                      channels.map((channel) => (
+                        <Button
+                          key={channel.id}
+                          variant={
+                            activeChannel?.id === channel.id
+                              ? "secondary"
+                              : "ghost"
+                          }
+                          className="w-full justify-start h-8 px-2"
+                          onClick={() => {
+                            if (activeWorkspace) {
+                              navigateToChannel(activeWorkspace.id, channel.id);
+                            }
+                          }}
+                          disabled={isNavigating}
+                        >
+                          <Hash className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <span className="truncate text-sm">
+                            {channel.name}
+                          </span>
+                        </Button>
+                      ))
+                    )}
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -451,22 +497,30 @@ export default function Home() {
 
                 <ScrollArea className="flex-1 px-2">
                   <div className="space-y-[2px] py-2">
-                    {directMessages.map((dm) => (
-                      <Button
-                        key={dm.id}
-                        variant={activeDM?.id === dm.id ? "secondary" : "ghost"}
-                        className="w-full justify-start h-8 px-2"
-                        onClick={() => {
-                          setActiveDM(dm);
-                          setActiveChannel(null);
-                        }}
-                      >
-                        <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="truncate text-sm">
-                          {dm.otherUser.displayName}
-                        </span>
-                      </Button>
-                    ))}
+                    {isLoadingDirectMessages ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      directMessages.map((dm) => (
+                        <Button
+                          key={dm.id}
+                          variant={
+                            activeDM?.id === dm.id ? "secondary" : "ghost"
+                          }
+                          className="w-full justify-start h-8 px-2"
+                          onClick={() => {
+                            navigateToDirectMessage(dm.id);
+                          }}
+                          disabled={isNavigating}
+                        >
+                          <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <span className="truncate text-sm">
+                            {dm.otherUser.displayName}
+                          </span>
+                        </Button>
+                      ))
+                    )}
 
                     {/* Workspace Members section for starting new DMs */}
                     {activeWorkspace && workspaceMembers.length > 0 && (
@@ -487,8 +541,7 @@ export default function Home() {
                                     member.user.id
                                   );
                                   if (dm && dm.otherUser) {
-                                    setActiveDM(dm);
-                                    setActiveChannel(null);
+                                    navigateToDirectMessage(dm.id);
                                     toast({
                                       title: "Direct message started",
                                       description: `Started conversation with ${dm.otherUser.displayName}`,
@@ -657,8 +710,7 @@ export default function Home() {
                     const dm = await startDirectMessage(4);
                     if (dm) {
                       console.log("DM created:", dm);
-                      setActiveDM(dm);
-                      setActiveChannel(null);
+                      navigateToDirectMessage(dm.id);
                       toast({
                         title: "Direct message started",
                         description: `Started conversation with ${dm.otherUser.displayName}`,
@@ -730,7 +782,29 @@ export default function Home() {
               {/* Message Input */}
               <div className="border-t p-4">
                 <EnhancedMessageInput
-                  onSendMessage={sendMessage}
+                  onSendMessage={(
+                    content: string,
+                    messageType?: string,
+                    mediaFile?: File
+                  ) => {
+                    if (activeChannel) {
+                      sendMessage(
+                        content,
+                        activeChannel.id,
+                        undefined,
+                        messageType,
+                        mediaFile
+                      );
+                    } else if (activeDM) {
+                      sendMessage(
+                        content,
+                        undefined,
+                        activeDM.id,
+                        messageType,
+                        mediaFile
+                      );
+                    }
+                  }}
                   disabled={!isConnected}
                   placeholder={
                     activeChannel

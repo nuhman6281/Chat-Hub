@@ -98,6 +98,12 @@ interface ChatContextType {
   isLoadingMessages: boolean;
   isConnected: boolean;
 
+  // Loading states
+  isLoadingWorkspaces: boolean;
+  isLoadingChannels: boolean;
+  isLoadingDirectMessages: boolean;
+  isLoadingMembers: boolean;
+
   // Call state
   currentCall: CallData | null;
   isCallModalOpen: boolean;
@@ -158,6 +164,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
+  // Loading states
+  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false);
+  const [isLoadingChannels, setIsLoadingChannels] = useState(false);
+  const [isLoadingDirectMessages, setIsLoadingDirectMessages] = useState(false);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   // Call state
   const [currentCall, setCurrentCall] = useState<CallData | null>(null);
@@ -261,7 +273,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (message.userId !== user?.id) {
         try {
           const audio = new Audio(
-            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt"
+            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt"
           );
           audio.volume = 0.3;
           audio
@@ -318,6 +330,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // API calls
   const fetchWorkspaces = async () => {
+    if (isLoadingWorkspaces) return; // Prevent multiple concurrent requests
+
+    setIsLoadingWorkspaces(true);
     try {
       const response = await fetch("/api/workspaces");
       if (response.ok) {
@@ -331,27 +346,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Failed to fetch workspaces:", error);
+    } finally {
+      setIsLoadingWorkspaces(false);
     }
   };
 
   const fetchChannels = async (workspaceId: number) => {
+    if (isLoadingChannels) return; // Prevent multiple concurrent requests
+
+    setIsLoadingChannels(true);
     try {
       const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
       if (response.ok) {
         const data = await response.json();
         setChannels(data);
 
-        // Select first channel if none is active
-        if (data.length > 0 && !activeChannel) {
-          setActiveChannel(data[0]);
-        }
+        // Don't auto-select first channel here - let routing handle it
       }
     } catch (error) {
       console.error("Failed to fetch channels:", error);
+    } finally {
+      setIsLoadingChannels(false);
     }
   };
 
   const fetchDirectMessages = async () => {
+    if (isLoadingDirectMessages) return; // Prevent multiple concurrent requests
+
+    setIsLoadingDirectMessages(true);
     try {
       const response = await fetch("/api/direct-messages");
       if (response.ok) {
@@ -360,6 +382,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Failed to fetch direct messages:", error);
+    } finally {
+      setIsLoadingDirectMessages(false);
     }
   };
 
@@ -820,6 +844,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages,
         isLoadingMessages,
         isConnected,
+        isLoadingWorkspaces,
+        isLoadingChannels,
+        isLoadingDirectMessages,
+        isLoadingMembers,
         setActiveWorkspace,
         setActiveChannel,
         setActiveDM,

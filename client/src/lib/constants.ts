@@ -47,11 +47,10 @@ export const AVATAR_COLORS = [
 // Route paths
 export const ROUTES = {
   HOME: "/",
-  LOGIN: "/login",
-  REGISTER: "/register",
-  WORKSPACE: "/workspace/:id",
+  AUTH: "/auth",
+  WORKSPACE: "/workspace/:workspaceId",
   CHANNEL: "/workspace/:workspaceId/channel/:channelId",
-  DIRECT_MESSAGE: "/conversations/:dmId",
+  DIRECT_MESSAGE: "/dm/:dmId",
   SETTINGS: "/settings",
   PROFILE: "/profile",
 };
