@@ -23,6 +23,7 @@ export function useRouting() {
     setActiveDM,
     isLoadingWorkspaces,
     isLoadingChannels,
+    isLoadingDirectMessages,
   } = useChat();
 
   const [isNavigating, setIsNavigating] = useState(false);
@@ -65,11 +66,9 @@ export function useRouting() {
   );
 
   useEffect(() => {
-    // This single effect now handles all routing logic.
-    // It's driven by URL changes and data loading states.
-
-    if (isNavigating || isLoadingWorkspaces) {
-      return; // Wait for navigation to complete and workspaces to be loaded
+    // Wait for navigation to complete and all necessary data to be loaded
+    if (isNavigating || isLoadingWorkspaces || isLoadingDirectMessages) {
+      return;
     }
 
     const { workspaceId, channelId, dmId } = params;
@@ -145,6 +144,7 @@ export function useRouting() {
     isNavigating,
     isLoadingWorkspaces,
     isLoadingChannels,
+    isLoadingDirectMessages,
     workspaces,
     channels,
     directMessages,

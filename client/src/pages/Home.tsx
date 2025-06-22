@@ -63,7 +63,7 @@ import { InviteUserDialog } from "@/components/InviteUserDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { useRouting } from "@/hooks/use-routing";
 import { cn } from "@/lib/utils";
-import { Workspace } from "@/shared/schema";
+import type { Workspace } from "../../../shared/schema";
 import {
   Tooltip,
   TooltipContent,

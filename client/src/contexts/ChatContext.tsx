@@ -3,8 +3,8 @@ import React, {
   useContext,
   useState,
   useEffect,
-  useCallback,
   ReactNode,
+  useRef,
 } from "react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useAuth } from "@/contexts/AuthWrapper";
@@ -175,6 +175,96 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentCall, setCurrentCall] = useState<CallData | null>(null);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
 
+  // Refs to track ongoing requests
+  const fetchingWorkspacesRef = useRef(false);
+  const fetchingChannelsRef = useRef(false);
+  const fetchingDirectMessagesRef = useRef(false);
+  const fetchingMembersRef = useRef(false);
+
+  // API calls - declare these before useEffect hooks
+  const fetchWorkspaces = async () => {
+    if (fetchingWorkspacesRef.current) return; // Prevent multiple concurrent requests
+
+    fetchingWorkspacesRef.current = true;
+    setIsLoadingWorkspaces(true);
+    try {
+      const response = await fetch("/api/workspaces");
+      if (response.ok) {
+        const data = await response.json();
+        setWorkspaces(data);
+
+        // Select first workspace if none is active
+        if (data.length > 0 && !activeWorkspace) {
+          setActiveWorkspace(data[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch workspaces:", error);
+    } finally {
+      setIsLoadingWorkspaces(false);
+      fetchingWorkspacesRef.current = false;
+    }
+  };
+
+  const fetchChannels = async (workspaceId: number) => {
+    if (fetchingChannelsRef.current) return; // Prevent multiple concurrent requests
+
+    fetchingChannelsRef.current = true;
+    setIsLoadingChannels(true);
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
+      if (response.ok) {
+        const data = await response.json();
+        setChannels(data);
+
+        // Don't auto-select first channel here - let routing handle it
+      }
+    } catch (error) {
+      console.error("Failed to fetch channels:", error);
+    } finally {
+      setIsLoadingChannels(false);
+      fetchingChannelsRef.current = false;
+    }
+  };
+
+  const fetchDirectMessages = async () => {
+    if (fetchingDirectMessagesRef.current) return; // Prevent multiple concurrent requests
+
+    fetchingDirectMessagesRef.current = true;
+    setIsLoadingDirectMessages(true);
+    try {
+      const response = await fetch("/api/direct-messages");
+      if (response.ok) {
+        const data = await response.json();
+        setDirectMessages(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch direct messages:", error);
+    } finally {
+      setIsLoadingDirectMessages(false);
+      fetchingDirectMessagesRef.current = false;
+    }
+  };
+
+  const fetchWorkspaceMembers = async (workspaceId: number) => {
+    if (fetchingMembersRef.current) return; // Prevent multiple concurrent requests
+
+    fetchingMembersRef.current = true;
+    setIsLoadingMembers(true);
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/members`);
+      if (response.ok) {
+        const data = await response.json();
+        setWorkspaceMembers(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch workspace members:", error);
+    } finally {
+      setIsLoadingMembers(false);
+      fetchingMembersRef.current = false;
+    }
+  };
+
   // Initialize encryption and fetch workspaces when user changes
   useEffect(() => {
     if (user) {
@@ -273,7 +363,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (message.userId !== user?.id) {
         try {
           const audio = new Audio(
-            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt"
+            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt559NEAxQp+PwtmMcBj2a2/LDciUFLYDO8tiJOQgZaLvt"
           );
           audio.volume = 0.3;
           audio
@@ -327,77 +417,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unsubscribeCallRinging();
     };
   }, [isConnected, activeChannel, activeDM, user, on, toast]);
-
-  // API calls
-  const fetchWorkspaces = async () => {
-    if (isLoadingWorkspaces) return; // Prevent multiple concurrent requests
-
-    setIsLoadingWorkspaces(true);
-    try {
-      const response = await fetch("/api/workspaces");
-      if (response.ok) {
-        const data = await response.json();
-        setWorkspaces(data);
-
-        // Select first workspace if none is active
-        if (data.length > 0 && !activeWorkspace) {
-          setActiveWorkspace(data[0]);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch workspaces:", error);
-    } finally {
-      setIsLoadingWorkspaces(false);
-    }
-  };
-
-  const fetchChannels = async (workspaceId: number) => {
-    if (isLoadingChannels) return; // Prevent multiple concurrent requests
-
-    setIsLoadingChannels(true);
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
-      if (response.ok) {
-        const data = await response.json();
-        setChannels(data);
-
-        // Don't auto-select first channel here - let routing handle it
-      }
-    } catch (error) {
-      console.error("Failed to fetch channels:", error);
-    } finally {
-      setIsLoadingChannels(false);
-    }
-  };
-
-  const fetchDirectMessages = async () => {
-    if (isLoadingDirectMessages) return; // Prevent multiple concurrent requests
-
-    setIsLoadingDirectMessages(true);
-    try {
-      const response = await fetch("/api/direct-messages");
-      if (response.ok) {
-        const data = await response.json();
-        setDirectMessages(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch direct messages:", error);
-    } finally {
-      setIsLoadingDirectMessages(false);
-    }
-  };
-
-  const fetchWorkspaceMembers = async (workspaceId: number) => {
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/members`);
-      if (response.ok) {
-        const data = await response.json();
-        setWorkspaceMembers(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch workspace members:", error);
-    }
-  };
 
   const refreshWorkspaceMembers = async () => {
     if (activeWorkspace) {
